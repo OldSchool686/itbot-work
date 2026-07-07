@@ -132,8 +132,8 @@ Nginx (:443) → backend FastAPI (:8000)
 ## Быстрый старт
 
 ```bash
-git clone https://github.com/OldSchool686/itbot-work.git
-cd itbot-work
+git clone https://github.com/OldSchool686/itbot-max.git
+cd itbot-max
 cp .env.example .env
 # Редактировать .env — заполнить токены и пароли
 docker compose up -d --build
