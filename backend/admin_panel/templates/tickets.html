@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Support Bot — Заявки</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Play:wght@400;700&family=Roboto:wght@400;500;700&family=Ubuntu:wght@400;500;700&subset=cyrillic&display=swap">
+    <link rel="stylesheet" href="/static/style.css?v=20260604a">
+    <style>
+        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+        .status-new { background: #dbeafe; color: #1d4ed8; }
+        .status-in_progress { background: #fef3c7; color: #b45309; }
+        .status-done { background: #dcfce7; color: #16a34a; }
+        .status-resolved { background: #dcfce7; color: #16a34a; }
+        .status-closed { background: #e5e7eb; color: #6b7280; }
+        .status-closed_user { background: #f3e8ff; color: #7e22ce; }
+
+        [data-theme="dark"] .status-new { background: rgba(59,130,246,0.2); color: #93c5fd; }
+        [data-theme="dark"] .status-in_progress { background: rgba(234,88,12,0.2); color: #fcd34d; }
+        [data-theme="dark"] .status-done { background: rgba(22,163,74,0.2); color: #86efac; }
+        [data-theme="dark"] .status-resolved { background: rgba(22,163,74,0.2); color: #86efac; }
+        [data-theme="dark"] .status-closed { background: rgba(107,114,128,0.3); color: #d1d5db; }
+        [data-theme="dark"] .status-closed_user { background: rgba(168,85,247,0.2); color: #d8b4fe; }
+
+        .toolbar { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+        .toolbar input[type="text"] { flex: 1 1 250px; max-width: 340px; min-height: 36px; }
+        .toolbar select.form-select { flex: 0 0 auto; min-width: 170px; min-height: 36px; padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); font-size: 0.875rem; background: var(--color-surface-solid); }
+        .bulk-actions { display: none; gap: 8px; align-items: center; margin-left: auto; }
+        .bulk-actions.visible { display: flex; }
+        .btn-delete-selected { padding: 6px 14px; border-radius: var(--radius-sm); border: 1px solid var(--color-danger); background: transparent; color: var(--color-danger); font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .btn-delete-selected:hover { background: var(--color-danger); color: #fff; }
+        .ticket-table input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--color-primary); }
+        .btn-delete-row { padding: 4px 8px; border-radius: var(--radius-sm); border: none; background: transparent; color: var(--color-danger); font-size: 0.75rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .btn-delete-row:hover { background: rgba(239,68,68,0.1); }
+
+        .ticket-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        .ticket-table th, .ticket-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--color-border); vertical-align: middle; white-space: nowrap; }
+        .ticket-table th { font-weight: 600; color: var(--color-text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; background: rgba(248,250,252,0.8); }
+        .ticket-table tr:hover td { background: rgba(15,118,110,0.03); }
+        .ticket-id { font-weight: 700; color: var(--color-primary); cursor: pointer; }
+        .ticket-desc { max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--color-text-muted); font-size: 0.8rem; }
+        .btn-open-ticket { padding: 5px 14px; border-radius: var(--radius-sm); border: 1px solid var(--color-primary); background: transparent; color: var(--color-primary); font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .btn-open-ticket:hover { background: var(--color-primary); color: #fff; }
+
+        .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .stat-mini { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 16px; text-align: center; }
+        .stat-mini-value { font-size: 1.5rem; font-weight: 700; color: var(--color-primary); line-height: 1.2; }
+        .stat-mini-label { font-size: 0.75rem; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
+        .modal-overlay.active { display: flex; }
+        .modal-box { background: var(--color-surface-solid); border-radius: 12px; width: 100%; max-width: 720px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 24px 80px rgba(0,0,0,0.35); overflow: hidden; border: 1px solid var(--color-border); }
+        .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--color-border); flex-shrink: 0; background: var(--color-surface-solid); }
+        .modal-header h2 { margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--color-text); display: flex; align-items: center; gap: 8px; }
+        .modal-header h2::before { content: ''; width: 4px; height: 20px; border-radius: 2px; background: var(--color-primary); flex-shrink: 0; }
+        .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--color-text-muted); padding: 4px 8px; border-radius: 6px; transition: all 0.15s; line-height: 1; }
+        .modal-close:hover { background: rgba(128,128,128,0.12); color: var(--color-text); }
+        .modal-body { flex: 1; overflow-y: auto; padding: 20px 24px; min-height: 0; background: var(--color-surface-solid); }
+        .modal-footer { flex-shrink: 0; border-top: 1px solid var(--color-border); background: var(--color-surface-solid); padding: 16px 24px; }
+
+        /* Detail sections */
+        .detail-section { margin-bottom: 16px; }
+        .detail-section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-muted); font-weight: 600; margin-bottom: 8px; }
+        .detail-row { display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--color-border); font-size: 0.9rem; align-items: flex-start; }
+        .attachment-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+        .photo-thumb { width: 120px; height: 120px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--color-border); cursor: pointer; transition: transform 0.15s; background: #f1f5f9; }
+        .photo-thumb:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+
+        /* File attachment card (for non-image files) */
+        .file-card { width: 130px; height: 80px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; overflow: hidden; }
+        .file-card:hover { transform: scale(1.03); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .fc-icon { font-size: 1.75rem; line-height: 1; margin-bottom: 2px; }
+        .fc-name { font-size: 0.65rem; color: var(--color-text-muted); text-align: center; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 122px; }
+        .fc-ext { font-size: 0.6rem; color: #94a3b8; margin-top: 1px; text-transform: uppercase; font-weight: 600; }
+
+        .fc-image   { background: rgba(13,148,136,0.08); border-color: rgba(13,148,136,0.3); }
+        .fc-video   { background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.3); }
+        .fc-pdf     { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.3); }
+        .fc-doc     { background: rgba(37,99,235,0.08); border-color: rgba(37,99,235,0.3); }
+        .fc-archive { background: rgba(234,179,8,0.08); border-color: rgba(234,179,8,0.3); }
+        .fc-audio   { background: rgba(168,85,247,0.08); border-color: rgba(168,85,247,0.3); }
+        .fc-other   { background: rgba(107,114,128,0.06); border-color: rgba(107,114,128,0.2); }
+        .fc-token   { background: rgba(107,114,128,0.08); border-color: rgba(107,114,128,0.3); width: auto; min-width: 150px; max-width: 260px; height: auto; padding: 6px 10px; flex-direction: row; gap: 6px; }
+        .fc-token .fc-icon { margin-bottom: 0; font-size: 1.1rem; }
+        .fc-token .fc-name { max-width: none; word-break: break-all; font-size: 0.7rem; }
+
+        /* --- Photo viewer lightbox (images only) --- */
+        .lightbox-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 10000; align-items: center; justify-content: center; }
+        .lightbox-overlay.active { display: flex; }
+        .lightbox-close { position: absolute; top: 16px; right: 24px; background: none; border: none; color: white; font-size: 2rem; cursor: pointer; z-index: 10001; line-height: 1; opacity: 0.8; transition: opacity 0.15s; }
+        .lightbox-close:hover { opacity: 1; }
+        .lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.15); border: none; color: white; font-size: 2.5rem; cursor: pointer; padding: 16px 12px; z-index: 10001; transition: background 0.15s; user-select: none; }
+        .lightbox-nav:hover { background: rgba(255,255,255,0.3); }
+        .lightbox-prev { left: 0; border-radius: 4px 0 0 4px; }
+        .lightbox-next { right: 0; border-radius: 0 4px 4px 0; }
+        .lightbox-img { max-width: 90vw; max-height: 85vh; object-fit: contain; border-radius: 4px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+        .lightbox-counter { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; font-size: 0.9rem; background: rgba(0,0,0,0.6); padding: 4px 14px; border-radius: 999px; }
+        .lightbox-error { color: #f87171; text-align: center; padding: 32px; max-width: 400px; font-size: 0.95rem; }
+
+        /* File detail overlay (for non-image files in lightbox) */
+        .file-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 10000; display: none; align-items: center; justify-content: center; }
+        .file-overlay.active { display: flex; }
+        .file-detail-box { text-align: center; color: white; display: flex; flex-direction: column; align-items: center; gap: 16px; max-width: 90vw; }
+        .file-detail-box .fc-icon { font-size: 5rem; margin-bottom: 8px; }
+        .file-detail-box .fd-name { font-size: 1.2rem; font-weight: 600; word-break: break-word; max-width: 400px; }
+        .file-detail-box .fd-ext { font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; margin-top: -8px; }
+        .file-detail-box a.fd-download { padding: 10px 28px; background: var(--color-primary); color: #fff; border-radius: var(--radius-sm); text-decoration: none; font-weight: 600; transition: background 0.15s; }
+        .file-detail-box a.fd-download:hover { background: var(--color-primary-dark); }
+
+        .detail-label { width: 120px; flex-shrink: 0; color: var(--color-text-muted); font-weight: 500; text-align: right; }
+        .detail-value { flex: 1; word-break: break-word; min-width: 0; }
+        .status-select { padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); font-size: 0.875rem; background: var(--color-surface); cursor: pointer; }
+
+        /* Reply section (in modal footer) */
+        #reply-text { width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--color-border); font-size: 0.9rem; font-family: inherit; resize: vertical; background: var(--color-surface-solid); color: var(--color-text); min-height: 100px; line-height: 1.5; transition: border-color 0.15s, box-shadow 0.15s; }
+        #reply-text:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(15,118,110,0.12); }
+        .reply-actions { display: flex; gap: 10px; align-items: center; margin-top: 10px; justify-content: space-between; }
+        .reply-paperclip { background: none; border: none; cursor: pointer; color: var(--color-text-muted); font-size: 1.4rem; padding: 6px; border-radius: 6px; transition: all 0.15s; line-height: 1; display: flex; align-items: center; }
+        .reply-paperclip:hover { background: rgba(128,128,128,0.12); color: var(--color-primary); }
+        #reply-files { display: none; }
+        .reply-send-btn { padding: 9px 28px; border-radius: 8px; background: var(--color-primary); color: #fff; font-weight: 600; cursor: pointer; transition: all 0.15s; font-size: 0.875rem; border: none; white-space: nowrap; margin-left: auto; }
+        .reply-send-btn:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15,118,110,0.25); }
+        .reply-send-btn:active:not(:disabled) { transform: translateY(0); }
+        .reply-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Reply history items */
+        .reply-item { padding: 12px 14px; margin-bottom: 8px; background: rgba(15,118,110,0.04); border-radius: 8px; border-left: 3px solid var(--color-primary); font-size: 0.9rem; }
+        .reply-text { color: var(--color-text); line-height: 1.6; white-space: pre-wrap; }
+
+       @media (max-width: 640px) {
+            .ticket-table th:nth-child(4), .ticket-table td:nth-child(4) { display: none; }
+            .toolbar input[type="text"] { flex: 1 1 120px; max-width: 200px; }
+            .modal-overlay { padding: 12px; align-items: flex-end; }
+            .modal-box { max-width: 100%; max-height: 95vh; border-radius: 16px 16px 0 0; }
+            .modal-header { padding: 14px 18px; }
+            .modal-body { padding: 16px 18px; }
+            .modal-footer { padding: 14px 18px; }
+        }
+        @media (max-width: 480px) {
+            .stats-bar { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+            .stat-mini { padding: 8px; }
+            .stat-mini-value { font-size: 1.1rem; }
+            .stat-mini-label { font-size: 0.6rem; }
+        }
+        @media (max-width: 390px) {
+            .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 4px; }
+            .toolbar { flex-direction: column; }
+            .toolbar input[type="text"] { max-width: none; width: 100%; }
+        }
+
+        /* ===== Dark theme overrides for modal ===== */
+        [data-theme="dark"] .modal-box { background: #1e293b; border-color: rgba(71,85,105,0.5); }
+        [data-theme="dark"] .modal-header { background: #1e293b; }
+        [data-theme="dark"] .modal-body { background: #1e293b; }
+        [data-theme="dark"] .modal-footer { background: #1e293b; }
+        [data-theme="dark"] .detail-row { border-bottom-color: rgba(71,85,105,0.4); }
+        [data-theme="dark"] .reply-item { background: rgba(20,184,166,0.08); border-left-color: var(--color-primary-light); }
+        [data-theme="dark"] .photo-thumb { background: #334155; }
+        [data-theme="dark"] #reply-text { background: #0f172a; color: #f1f5f9; border-color: rgba(71,85,105,0.6); }
+          [data-theme="dark"] .status-select { background: #0f172a; color: #f1f5f9; border-color: rgba(71,85,105,0.6); }
+        [data-theme="dark"] .ticket-table th { background: rgba(30,41,59,0.9); }
+
+        @media (max-width: 640px) {
+            .sidebar-theme-toggle { display: flex !important; }
+        }
+    </style>
+</head>
+<body data-font="">
+    <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
+
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">IT</div>
+            <span class="sidebar-logo-text">Support Bot</span>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="/admin"><span>&#128200;</span> Дашборд</a></li>
+            <li><a href="/admin/documents"><span>&#128196;</span> Документы</a></li>
+            <li><a href="/admin/users"><span>&#128101;</span> Пользователи</a></li>
+            <li><a href="/admin/tickets" class="active"><span>&#128203;</span> Заявки</a></li>
+            <li><a href="/admin/analytics"><span>&#128202;</span> Аналитика</a></li>
+            <li><a href="/admin/import-csv"><span>&#128229;</span> Импорт CSV</a></li>
+        </ul>
+        <div class="font-controls-mobile" style="display:none;align-items:center;gap:4px;padding:8px 12px;border-top:1px solid var(--color-border);margin-top:8px;">
+            <select class="font-select" onchange="setFont(this.value)"><option value="">Play</option><option value="inter">Inter</option><option value="roboto">Roboto</option><option value="ubuntu">Ubuntu</option></select>
+            <button class="font-size-btn" onclick="changeFontSize(-1)">A-</button>
+            <button class="font-size-btn" onclick="changeFontSize(1)">A+</button>
+        </div>
+        <div class="sidebar-theme-toggle" style="display:none;align-items:center;justify-content:space-between;padding:8px 12px;border-top:1px solid var(--color-border);">
+            <span style="font-size:0.85rem;color:var(--color-text-muted);">Тема</span>
+            <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Переключить тему"><span class="icon-sun">&#9728;</span><span class="icon-moon">&#9790;</span></button>
+        </div>
+        <div class="sidebar-footer">
+            <button onclick="logout()" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);color:var(--color-danger);text-decoration:none;font-weight:500;transition:all 0.15s;width:100%;border:none;background:none;cursor:pointer;font-size:inherit;font-family:inherit;text-align:left;">
+                <span>&#128683;</span> Выйти
+            </button>
+        </div>
+    </aside>
+
+    <div class="app-layout">
+        <div class="main-content">
+            <nav class="top-nav">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Открыть меню">&#9776;</button>
+                    <span style="font-weight:600;font-size:1.1rem;">Заявки</span>
+                </div>
+                <div class="nav-user">
+                    <div class="font-controls">
+                        <select class="font-select" onchange="setFont(this.value)" aria-label="Выбор шрифта">
+                            <option value="">Play</option><option value="inter">Inter</option><option value="roboto">Roboto</option><option value="ubuntu">Ubuntu</option>
+                        </select>
+                        <button class="font-size-btn" onclick="changeFontSize(-1)" aria-label="Уменьшить размер">A-</button>
+                        <button class="font-size-btn" onclick="changeFontSize(1)" aria-label="Увеличить размер">A+</button>
+                        <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Переключить тему"><span class="icon-sun">&#9728;</span><span class="icon-moon">&#9790;</span></button>
+                    </div>
+                    <span id="admin-name"></span>
+                    <button onclick="logout()" class="btn btn-sm btn-outline">Выйти</button>
+                </div>
+            </nav>
+
+            <div style="padding-top:24px;padding-bottom:48px;">
+        <div class="page-header">
+            <h1>Заявки</h1>
+        </div>
+
+        <div class="stats-bar" id="stats-bar"></div>
+
+        <div class="toolbar" id="main-toolbar">
+            <input type="text" class="form-input" id="search-input" placeholder="Поиск по имени, телефону, категории...">
+            <select class="form-select" id="status-filter">
+                <option value="">Все статусы</option>
+                <option value="new">🔵 Новые</option>
+                <option value="in_progress">🟡 В работе</option>
+                <option value="done">✅ Выполнены</option>
+                <option value="resolved">✅ Решены</option>
+                <option value="closed">⚫ Закрыты</option>
+            </select>
+            <div class="bulk-actions" id="bulk-actions">
+                <span id="selected-count" style="font-size:0.85rem;color:var(--color-text-muted);"></span>
+                <button class="btn-delete-selected" onclick="deleteSelected()">🗑 Удалить выбранные</button>
+            </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table class="ticket-table" id="tickets-table">
+                <thead>
+                      <tr>
+                       <th style="width:36px;"><input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this.checked)" title="Выбрать все"></th>
+                       <th>ID</th>
+                           <th>Дата</th>
+                           <th style="text-align:center;">Открыть</th>
+                           <th>Статус</th>
+                           <th>Категория</th>
+                           <th>Описание</th>
+                           <th>Заявитель</th>
+                           <th style="width:50px;text-align:center;">⚙️</th>
+                      </tr>
+                  </thead>
+                <tbody id="tickets-body"></tbody>
+            </table>
+        </div>
+
+        <div class="empty-state" id="empty-state" style="display:none;">
+            <span class="empty-state-icon">&#128203;</span>
+            <p>Нет заявок</p>
+        </div>
+    </div>
+
+    <!-- Ticket detail modal -->
+    <div class="modal-overlay" id="ticket-modal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2 id="modal-title"></h2>
+                <button class="modal-close" onclick="closeModal()" aria-label="Закрыть">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-content"></div>
+            <div class="modal-footer">
+                <textarea id="reply-text" placeholder="Написать ответ в MAX..." maxlength="4096"></textarea>
+                <div class="reply-actions">
+                    <button type="button" class="reply-paperclip" onclick="document.getElementById('reply-files').click()" title="Прикрепить файл">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                    </button>
+                    <input type="file" id="reply-files" multiple accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.zip,.rar,.xlsx,.xls">
+                    <button class="detail-btn reply-send-btn" onclick="sendReply(_currentTicketId)">Ответить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo lightbox (images) -->
+    <div class="lightbox-overlay" id="photo-lightbox">
+        <button class="lightbox-close" onclick="closeLightbox()" aria-label="Закрыть">&#10005;</button>
+        <button class="lightbox-nav lightbox-prev" onclick="navPhoto(-1)" aria-label="Предыдущее фото">&#8249;</button>
+        <img class="lightbox-img" id="lightbox-img" src="" alt="Фото заявки">
+        <button class="lightbox-nav lightbox-next" onclick="navPhoto(1)" aria-label="Следующее фото">&#8250;</button>
+        <div class="lightbox-counter" id="lightbox-counter"></div>
+    </div>
+
+    <!-- File detail overlay (non-image files) -->
+    <div class="file-overlay" id="file-overlay">
+        <button class="lightbox-close" onclick="closeFileOverlay()" aria-label="Закрыть">&#10005;</button>
+        <div class="file-detail-box" id="file-detail-box"></div>
+    </div>
+
+    <script src="/static/admin.js?v=20260601c"></script>
+    <script>
+        const STATUS_LABELS = {
+            new: '🔵 Новая', in_progress: '🟡 В работе', done: '✅ Выполнена', resolved: '✅ Решена', closed: '⚫ Закрыта'
+        };
+        const CATEGORY_LABELS = {
+            computer: '💻 Компьютер/Ноутбук', mfu: '🖨️ МФУ/Принтер/Сканер',
+            software: '⚙️ Программное обеспечение', certificate: '🔐 Сертификат/Подпись', other: '📎 Другое'
+        };
+        var _currentTicketId;
+
+        let currentPage = 0;
+        const pageSize = 50;
+
+        /* ---- Helpers ---- */
+
+        function escHtml(s) {
+            var d = document.createElement('div');
+            d.textContent = s || '';
+            return d.innerHTML;
+        }
+        function escAttr(s) { return (s||'').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+        /** Safely decode URL-encoded string (handles %D0%98... → кириллица). */
+        function safeDecode(s) {
+            if (!s || typeof s !== 'string') return '';
+            try { return decodeURIComponent(s); } catch(e) { return s; }
+        }
+
+        /** Probe a URL through backend to detect real Content-Type. */
+        async function _probeAttachment(url) {
+            try {
+                var res = await apiFetch('/attachments/probe?url=' + encodeURIComponent(url));
+                if (res.ok) return await res.json();
+            } catch(e) { console.warn('Probe failed:', e); }
+            return null;
+        }
+
+        /** Replace a failed img thumbnail with a typed file card. */
+        async function _replaceWithFileCard(imgEl, url) {
+            // Show loading placeholder immediately
+            var tmp = document.createElement('div');
+            tmp.className = 'file-card fc-other';
+            tmp.innerHTML = '<span class="fc-icon">⏳</span><span class="fc-name">определение...</span>';
+            imgEl.replaceWith(tmp);
+
+            // Probe real type from server
+            var info = await _probeAttachment(url);
+            if (!info) info = { icon: '\uD83D\uDCC4', cssClass: 'fc-other', ext: '', name: '' };
+
+            var fcName = safeDecode(info.name || '');
+            var fcExt = (info.ext ? '.' + info.ext : '');
+            tmp.className = 'file-card ' + info.cssClass;
+            tmp.innerHTML = '<span class="fc-icon">' + info.icon + '</span>' +
+                '<span class="fc-name" title="' + escAttr(fcName || url.substring(0, 40)) + '">' + escHtml(fcName || 'Файл') + '</span>' +
+                (fcExt ? '<span class="fc-ext">' + escHtml(fcExt) + '</span>' : '');
+            tmp.onclick = function() { openFileOverlay(url, info); };
+        }
+
+        /* ---- Stats & Tickets ---- */
+
+        async function loadStats() {
+            try {
+                const res = await apiFetch('/tickets/admin/stats');
+                if (!res.ok) return;
+                const data = await res.json();
+                const bar = document.getElementById('stats-bar');
+                bar.innerHTML = `
+                    <div class="stat-mini"><div class="stat-mini-value">${data.total}</div><div class="stat-mini-label">Всего</div></div>
+                    <div class="stat-mini"><div class="stat-mini-value" style="color:#1d4ed8;">${data.by_status.new || 0}</div><div class="stat-mini-label">Новые</div></div>
+                    <div class="stat-mini"><div class="stat-mini-value" style="color:#b45309;">${data.by_status.in_progress || 0}</div><div class="stat-mini-label">В работе</div></div>
+                    <div class="stat-mini"><div class="stat-mini-value" style="color:#16a34a;">${(data.by_status.done || 0) + (data.by_status.resolved || 0)}</div><div class="stat-mini-label">Выполнено/Решено</div></div>
+                    <div class="stat-mini"><div class="stat-mini-value" style="color:#6b7280;">${data.by_status.closed || 0}</div><div class="stat-mini-label">Закрыто</div></div>
+                `;
+            } catch(e) { console.error('Stats load error:', e); }
+        }
+
+        async function loadTickets() {
+            const search = document.getElementById('search-input').value.trim();
+            const statusFilter = document.getElementById('status-filter').value;
+            let url = `/tickets/admin/list?limit=${pageSize}&offset=${currentPage * pageSize}`;
+            if (search) url += `&search=${encodeURIComponent(search)}`;
+            if (statusFilter) url += `&status_filter=${encodeURIComponent(statusFilter)}`;
+
+            try {
+                const res = await apiFetch(url);
+                if (!res.ok) return;
+                const tickets = await res.json();
+                renderTickets(tickets);
+            } catch(e) { console.error('Ticket load error:', e); }
+        }
+
+        function renderTickets(tickets) {
+            const tbody = document.getElementById('tickets-body');
+            const empty = document.getElementById('empty-state');
+            const table = document.getElementById('tickets-table');
+
+            if (!tickets || tickets.length === 0) {
+                table.style.display = 'none';
+                empty.style.display = 'block';
+                return;
+            }
+
+            table.style.display = '';
+            empty.style.display = 'none';
+            tbody.innerHTML = tickets.map(t => {
+                const dateStr = t.created_at ? new Date(t.created_at).toLocaleString('ru-RU', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : '-';
+                return `<tr>
+                    <td style="text-align:center;"><input type="checkbox" class="ticket-checkbox" data-id="${t.id}" onchange="updateBulkActions()"></td>
+                    <td><span class="ticket-id" onclick="openTicket(${t.id})">#${t.id}</span></td>
+                    <td style="white-space:nowrap; font-size:0.8rem;">${dateStr}</td>
+                    <td style="text-align:center;"><button class="btn-open-ticket" onclick="openTicket(${t.id})">&#128065; Открыть</button></td>
+                    <td><span class="status-badge ${t.status === 'closed' && t.closed_by_user ? 'status-closed_user' : 'status-' + t.status}">${(t.status === 'closed' && t.closed_by_user) ? '\u26AB Закрыта (пользователем)' : (STATUS_LABELS[t.status] || t.status)}</span></td>
+                    <td>${CATEGORY_LABELS[t.category] || escHtml(t.category)}</td>
+                    <td class="ticket-desc" title="${escAttr(t.description || '')}">${escHtml((t.description || '').substring(0, 100))}</td>
+                    <td>${escHtml(t.full_name)}</td>
+                    <td style="text-align:center;"><button class="btn-delete-row" onclick="deleteTicket(${t.id})" title="Удалить заявку">🗑</button></td>
+                </tr>`;
+            }).join('');
+        }
+
+        /* ---- Ticket detail modal ---- */
+
+        async function openTicket(id) {
+            try {
+                const res = await apiFetch(`/tickets/admin/${id}`);
+                if (!res.ok) return;
+                const t = await res.json();
+                _currentTicketId = id;
+                const dateStr = t.created_at ? new Date(t.created_at).toLocaleString('ru-RU') : '-';
+
+                var allUrls = t.photo_urls || [];
+                window._ticketPhotos = [];
+
+                document.getElementById('modal-title').textContent = `Заявка #${t.id}`;
+                document.getElementById('reply-text').value = '';
+                var fileInput = document.getElementById('reply-files');
+                if (fileInput) fileInput.value = '';
+
+                /* Build attachment grid — always probe HTTP URLs */
+                var attHtml = '';
+                if (allUrls.length > 0) {
+                    var cards = allUrls.map(function(u, i) {
+                        // Token entries — show as badge
+                        if (u.startsWith('token:')) {
+                            var short = u.substring(0, 40) + (u.length > 40 ? '...' : '');
+                            return '<div class="file-card fc-token"><span class="fc-icon">\uD83D\uDD11</span><span class="fc-name" title="' + escAttr(u) + '">' + escHtml(short) + '</span></div>';
+                        }
+
+                        // HTTP URLs — show loading placeholder, probe in background
+                        if (u.startsWith('http')) {
+                            return '<div class="file-card fc-other" data-att-url="' + escAttr(u) + '" data-att-index="' + i + '">' +
+                                '<span class="fc-icon">\u23F3</span><span class="fc-name">...</span></div>';
+                        }
+
+                        // Fallback for other URL schemes
+                        return '<div class="file-card fc-other"><span class="fc-icon">\uD83D\uDCC4</span><span class="fc-name">' + escHtml(u.substring(0, 25)) + '</span></div>';
+                    }).join('');
+
+                    attHtml = '<div class="detail-section"><div class="detail-section-title">Вложения (' + allUrls.length + ')</div>' +
+                        '<div class="attachment-grid">' + cards + '</div></div>';
+                }
+
+                  document.getElementById('modal-content').innerHTML = `
+                    <div class="detail-section">
+                        <div class="detail-section-title">Информация</div>
+                        <div class="detail-row"><span class="detail-label">Статус:</span><span class="detail-value">
+                            <select class="status-select" id="modal-status" onchange="changeStatus(${t.id}, this.value)">
+                                ${Object.keys(STATUS_LABELS).map(s => '<option value="' + s + '"' + (s === t.status ? ' selected' : '') + '>' + STATUS_LABELS[s] + '</option>').join('')}
+                            </select>
+                        </span></div>
+                        ${t.closed_by_user ? '<div class="detail-row"><span class="detail-label">Закрыто:</span><span class="detail-value" style="color:#7e22ce;">Пользователем через бот</span></div>' : ''}
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-section-title">Заявитель</div>
+                        <div class="detail-row"><span class="detail-label">ФИО:</span><span class="detail-value">${escHtml(t.full_name)}</span></div>
+                        <div class="detail-row"><span class="detail-label">Телефон:</span><span class="detail-value">${escHtml(t.phone || '-')}</span></div>
+                        <div class="detail-row"><span class="detail-label">Отдел:</span><span class="detail-value">${escHtml(t.department || '-')}</span></div>
+                    </div>
+                    <div class="detail-section">
+                        <div class="detail-section-title">Детали</div>
+                        <div class="detail-row"><span class="detail-label">Категория:</span><span class="detail-value">${CATEGORY_LABELS[t.category] || escHtml(t.category)}</span></div>
+                        <div class="detail-row"><span class="detail-label">Описание:</span><span class="detail-value">${escHtml((t.description || '').replace(/\n/g, '<br>'))}</span></div>
+                        <div class="detail-row"><span class="detail-label">Дата:</span><span class="detail-value">${dateStr}</span></div>
+                        ${t.bitrix_deal_id ? '<div class="detail-row"><span class="detail-label">Bitrix Deal:</span><span class="detail-value">#' + t.bitrix_deal_id + '</span></div>' : ''}
+                    </div>
+                    ${attHtml}
+                    <div class="detail-section">
+                        <div class="detail-section-title">История ответов</div>
+                        <div id="reply-history"></div>
+                    </div>
+                `;
+                loadReplies(t.id);
+                document.getElementById('ticket-modal').classList.add('active');
+
+                // Probe all HTTP attachments in parallel and replace placeholders
+                var grid = document.querySelector('#modal-content .attachment-grid');
+                if (grid) {
+                    grid.querySelectorAll('.photo-thumb, .file-card[data-att-url]').forEach(function(placeholder) {
+                        var url = placeholder.getAttribute('data-att-url');
+                        var index = parseInt(placeholder.getAttribute('data-att-index') || '0', 10);
+                        _resolveAttachment(placeholder, url, index);
+                    });
+                }
+
+            } catch(e) { console.error('Ticket open error:', e); }
+        }
+
+        async function loadReplies(ticketId) {
+            try {
+                const res = await apiFetch(`/tickets/admin/${ticketId}/replies`);
+                if (!res.ok) return;
+                const replies = await res.json();
+                var container = document.getElementById('reply-history');
+                if (!container) return;
+
+                if (replies.length === 0) {
+                    container.innerHTML = '<hr style="margin:8px 0;border:none;border-top:1px solid #ddd;"><div class="detail-row"><span class="detail-label">Ответы:</span><span style="color:#999;">Нет</span></div>';
+                    return;
+                }
+
+                var html = '<hr style="margin:8px 0;border:none;border-top:1px solid #ddd;"><strong style="font-size:12px;color:#6b7280;">История ответов (' + replies.length + '):</strong>';
+                html += replies.map(function(r) {
+                    var dateStr = r.created_at ? new Date(r.created_at).toLocaleString('ru-RU') : '';
+                    var filesHtml = '';
+                    if (r.file_names && r.file_names.length > 0) {
+                        filesHtml = '<br><small style="color:#059669;">📎 ' + escHtml(r.file_names.join(', ')) + '</small>';
+                    }
+                    return '<div class="reply-item">' +
+                        '<strong>' + escHtml(r.admin_name) + '</strong> <span style="color:#9ca3af;font-size:12px;">' + dateStr + (r.sent_to_max ? ' • отправлено в MAX ✓' : '') + '</span><br>' +
+                        '<span class="reply-text">' + escHtml(r.reply_text).replace(/\n/g, '<br>') + '</span>' +
+                        filesHtml + '</div>';
+                }).join('');
+
+                container.innerHTML = html;
+            } catch(e) { console.error('Load replies error:', e); }
+        }
+
+        async function sendReply(ticketId) {
+            var textEl = document.getElementById('reply-text');
+            var text = (textEl.value || '').trim();
+            if (!text) { showToast('Введите текст ответа', 'warning'); return; }
+
+            var btn = document.querySelector('.reply-send-btn');
+            btn.disabled = true;
+            btn.textContent = 'Отправка...';
+
+            try {
+                var formData = new FormData();
+                formData.append('text', text);
+                var fileInput = document.getElementById('reply-files');
+                if (fileInput) {
+                    for (var i = 0; i < fileInput.files.length; i++) {
+                        formData.append('files', fileInput.files[i]);
+                    }
+                }
+
+                const res = await fetch(`${API}/tickets/admin/${ticketId}/reply`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                });
+                if (!res.ok) throw new Error('Request failed');
+
+                showToast('Ответ отправлен в MAX ✓', 'success');
+                textEl.value = '';
+                if (fileInput) fileInput.value = '';
+                loadReplies(ticketId);
+            } catch(e) {
+                console.error('Send reply error:', e);
+                showToast('Ошибка отправки ответа', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Ответить';
+            }
+        }
+
+        /** Probe URL and replace placeholder with image thumbnail or file card. */
+        async function _resolveAttachment(placeholder, url, index) {
+            var info = await _probeAttachment(url);
+            if (!info) info = { icon: '\uD83D\uDCC4', cssClass: 'fc-other', ext: '', name: '' };
+
+            var isImage = info.cssClass === 'fc-image';
+
+            if (isImage) {
+                // Image — add to lightbox photos and show as thumbnail
+                window._ticketPhotos[index] = url;
+                placeholder.outerHTML = '<img class="photo-thumb" src="' + escAttr(url) + '" alt="Вложение #' + (index+1) + '" onclick="openLightbox(' + index + ')" data-att-url="' + escAttr(url) + '">';
+            } else {
+                // Non-image — show as file card with icon and name
+                var fcName = safeDecode(info.name || '');
+                var fcExt = (info.ext ? '.' + info.ext : '');
+                placeholder.className = 'file-card ' + info.cssClass;
+                placeholder.innerHTML = '<span class="fc-icon">' + info.icon + '</span>' +
+                    '<span class="fc-name" title="' + escAttr(fcName || url.substring(0, 40)) + '">' + escHtml(fcName || 'Файл') + '</span>' +
+                    (fcExt ? '<span class="fc-ext">' + escHtml(fcExt) + '</span>' : '');
+                placeholder.onclick = function() { openFileOverlay(url, info); };
+            }
+        }
+
+        /* ---- Photo lightbox (images only — original behavior preserved) ---- */
+
+        var _lightboxIndex = 0;
+
+        function openLightbox(index) {
+            var photos = window._ticketPhotos || [];
+            if (!photos.length) return;
+            _lightboxIndex = index;
+            updateLightbox();
+            document.getElementById('photo-lightbox').classList.add('active');
+        }
+
+        function closeLightbox() {
+            document.getElementById('photo-lightbox').classList.remove('active');
+        }
+
+        function navPhoto(dir) {
+            var photos = window._ticketPhotos || [];
+            if (!photos.length) return;
+            _lightboxIndex = (_lightboxIndex + dir + photos.length) % photos.length;
+            updateLightbox();
+        }
+
+        function updateLightbox() {
+            var photos = window._ticketPhotos || [];
+            var img = document.getElementById('lightbox-img');
+            var counter = document.getElementById('lightbox-counter');
+            if (photos[_lightboxIndex]) {
+                img.style.display = '';
+                img.src = photos[_lightboxIndex];
+                img.onerror = function() {
+                    this.style.display = 'none';
+                    var errDiv = document.createElement('div');
+                    errDiv.className = 'lightbox-error';
+                    errDiv.textContent = 'Не удалось загрузить изображение (возможно, ссылка устарела)';
+                    if (!img.parentNode.querySelector('.lightbox-error')) {
+                        img.after(errDiv);
+                    }
+                };
+                var oldErr = img.nextElementSibling;
+                if (oldErr && oldErr.classList.contains('lightbox-error')) oldErr.remove();
+            }
+            counter.textContent = photos.length > 1 ? (_lightboxIndex + 1) + ' / ' + photos.length : '';
+        }
+
+        /* ---- File overlay (non-image files) ---- */
+
+        function openFileOverlay(url, info) {
+            var box = document.getElementById('file-detail-box');
+            if (info && info.icon) {
+                var displayName = safeDecode(info.name || url.substring(0, 40));
+                box.innerHTML = '<span class="fc-icon">' + info.icon + '</span>' +
+                    '<span class="fd-name">' + escHtml(displayName) + '</span>' +
+                    (info.ext ? '<span class="fd-ext">.' + escHtml(info.ext) + '</span>' : '') +
+                    '<a class="fd-download" href="' + escAttr(url) + '" target="_blank" rel="noopener">\u2B07\uFE0F Скачать</a>';
+            } else {
+                box.innerHTML = '<span class="fc-icon">\uD83D\uDCC4</span>' +
+                    '<span class="fd-name">' + escHtml(safeDecode(url.substring(0, 60))) + '</span>' +
+                    '<a class="fd-download" href="' + escAttr(url) + '" target="_blank" rel="noopener">\u2B07\uFE0F Скачать</a>';
+            }
+            document.getElementById('file-overlay').classList.add('active');
+        }
+
+        function closeFileOverlay() {
+            document.getElementById('file-overlay').classList.remove('active');
+        }
+
+        /* ---- Keyboard & backdrop ---- */
+
+        document.addEventListener('keydown', function(e) {
+            var lb = document.getElementById('photo-lightbox');
+            if (lb.classList.contains('active')) {
+                if (e.key === 'Escape') closeLightbox();
+                else if (e.key === 'ArrowLeft') navPhoto(-1);
+                else if (e.key === 'ArrowRight') navPhoto(1);
+                return;
+            }
+            var fo = document.getElementById('file-overlay');
+            if (fo.classList.contains('active') && e.key === 'Escape') closeFileOverlay();
+        });
+
+        document.getElementById('photo-lightbox').addEventListener('click', function(e) {
+            if (e.target === this) closeLightbox();
+        });
+        document.getElementById('file-overlay').addEventListener('click', function(e) {
+            if (e.target === this) closeFileOverlay();
+        });
+
+        /* ---- Status change ---- */
+
+        async function changeStatus(ticketId, newStatus) {
+            try {
+                const res = await apiFetch(`/tickets/admin/${ticketId}/status`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({status: newStatus})
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    alert('Ошибка: ' + (err.detail || 'Неизвестная ошибка'));
+                    loadTickets();
+                    return;
+                }
+                loadStats();
+            } catch(e) { console.error('Status change error:', e); }
+        }
+
+        function closeModal() {
+            document.getElementById('ticket-modal').classList.remove('active');
+        }
+
+        document.getElementById('ticket-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        /* ---- Selection & bulk delete ---- */
+
+        function toggleSelectAll(checked) {
+            var cbs = document.querySelectorAll('.ticket-checkbox');
+            for (var i = 0; i < cbs.length; i++) cbs[i].checked = checked;
+            updateBulkActions();
+        }
+
+        function getSelectedIds() {
+            var ids = [];
+            var cbs = document.querySelectorAll('.ticket-checkbox:checked');
+            for (var i = 0; i < cbs.length; i++) ids.push(parseInt(cbs[i].dataset.id, 10));
+            return ids;
+        }
+
+        function updateBulkActions() {
+            var ids = getSelectedIds();
+            var bar = document.getElementById('bulk-actions');
+            var countEl = document.getElementById('selected-count');
+            if (ids.length > 0) {
+                bar.classList.add('visible');
+                countEl.textContent = 'Выбрано: ' + ids.length;
+            } else {
+                bar.classList.remove('visible');
+            }
+            // Update "select all" checkbox state
+            var allCbs = document.querySelectorAll('.ticket-checkbox');
+            var selectAllCb = document.getElementById('select-all-checkbox');
+            if (selectAllCb) {
+                selectAllCb.checked = allCbs.length > 0 && ids.length === allCbs.length;
+                selectAllCb.indeterminate = ids.length > 0 && ids.length < allCbs.length;
+            }
+        }
+
+        async function deleteTicket(id) {
+            if (!confirm('Удалить заявку #' + id + ' из системы? Это действие необратимо.')) return;
+            try {
+                var res = await apiFetch('/tickets/admin/delete', {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ids: [id]})
+                });
+                if (!res.ok) {
+                    var err = await res.json().catch(() => ({}));
+                    showToast('Ошибка: ' + (err.detail || 'Неизвестная ошибка'), 'error');
+                    return;
+                }
+                var data = await res.json();
+                showToast(data.message, 'success');
+                loadStats(); loadTickets();
+            } catch(e) { console.error('Delete error:', e); }
+        }
+
+        async function deleteSelected() {
+            var ids = getSelectedIds();
+            if (ids.length === 0) return;
+            if (!confirm('Удалить ' + ids.length + ' заявку(й) из системы? Это действие необратимо.')) return;
+            try {
+                var res = await apiFetch('/tickets/admin/delete', {
+                    method: 'DELETE',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ids: ids})
+                });
+                if (!res.ok) {
+                    var err = await res.json().catch(() => ({}));
+                    showToast('Ошибка: ' + (err.detail || 'Неизвестная ошибка'), 'error');
+                    return;
+                }
+                var data = await res.json();
+                showToast(data.message, 'success');
+                loadStats(); loadTickets();
+            } catch(e) { console.error('Delete error:', e); }
+        }
+
+        let searchTimeout;
+        document.getElementById('search-input').addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => { currentPage = 0; document.getElementById('select-all-checkbox').checked = false; loadTickets(); }, 300);
+        });
+        document.getElementById('status-filter').addEventListener('change', () => { currentPage = 0; document.getElementById('select-all-checkbox').checked = false; loadTickets(); });
+
+        checkAuth().then(authed => { if (authed) { loadStats(); loadTickets(); } });
+        loadTickets();
+    </script>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+</body>
+</html>

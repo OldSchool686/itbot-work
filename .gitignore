@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+documents/*.pdf
+documents/*.docx
+uploads/*
+!uploads/.gitkeep
+!documents/.gitkeep
+.DS_Store
+*.log
+fcm-credentials.json

@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Пользователи — IT Support Bot</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Play:wght@400;700&family=Roboto:wght@400;500;700&family=Ubuntu:wght@400;500;700&subset=cyrillic&display=swap">
+    <link rel="stylesheet" href="/static/style.css?v=20260531b">
+    <style>
+        .actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .filter-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+        .filter-bar input, .filter-bar select { padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.9375rem; background: var(--color-surface); color: var(--color-text); }
+        .filter-bar input:focus, .filter-bar select:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(15,118,110,0.12); }
+        .filter-search { flex: 1; min-width: 200px; max-width: 400px; }
+        .pagination-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+        .showing-text { font-size: 0.875rem; color: var(--color-text-muted); }
+        .per-page-select { padding: 4px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); font-size: 0.875rem; background: var(--color-surface); }
+        .form-check { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+        .form-check input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--color-primary); cursor: pointer; }
+        .form-check label { font-size: 0.9375rem; cursor: pointer; }
+        .phone-link { color: var(--color-primary); text-decoration: none; font-weight: 500; }
+        .phone-link:hover { text-decoration: underline; }
+        .empty-state { padding: 48px 24px; text-align: center; color: var(--color-text-muted); }
+        .empty-state p { margin-top: 8px; font-size: 0.9375rem; }
+        .table-actions { display: flex; gap: 6px; align-items: center; }
+
+        @media (max-width: 768px) {
+            .filter-bar { flex-direction: column; align-items: stretch; }
+            .filter-search { max-width: none; min-width: 0; }
+            .pagination-row { flex-direction: column; align-items: center; }
+            .modal-content { margin: 12px; max-width: 100%; }
+            .actions-row { width: 100%; }
+            .actions-row .btn { flex: 1; justify-content: center; }
+        }
+    </style>
+</head>
+<body data-font="">
+    <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
+
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">IT</div>
+            <span class="sidebar-logo-text">Support Bot</span>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="/admin"><span>&#128200;</span> Дашборд</a></li>
+            <li><a href="/admin/documents"><span>&#128196;</span> Документы</a></li>
+            <li><a href="/admin/users" class="active"><span>&#128101;</span> Пользователи</a></li>
+            <li><a href="/admin/tickets"><span>&#128203;</span> Заявки</a></li>
+            <li><a href="/admin/analytics"><span>&#128202;</span> Аналитика</a></li>
+            <li><a href="/admin/import-csv"><span>&#128229;</span> Импорт CSV</a></li>
+        </ul>
+        <div class="font-controls-mobile" style="display:none;align-items:center;gap:4px;padding:8px 12px;border-top:1px solid var(--color-border);margin-top:8px;">
+            <select class="font-select" onchange="setFont(this.value)"><option value="">Play</option><option value="inter">Inter</option><option value="roboto">Roboto</option><option value="ubuntu">Ubuntu</option></select>
+            <button class="font-size-btn" onclick="changeFontSize(-1)">A-</button>
+            <button class="font-size-btn" onclick="changeFontSize(1)">A+</button>
+        </div>
+        <div class="sidebar-theme-toggle" style="display:none;align-items:center;justify-content:space-between;padding:8px 12px;border-top:1px solid var(--color-border);">
+            <span style="font-size:0.85rem;color:var(--color-text-muted);">Тема</span>
+            <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Переключить тему"><span class="icon-sun">&#9728;</span><span class="icon-moon">&#9790;</span></button>
+        </div>
+        <div class="sidebar-footer">
+            <button onclick="logout()" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);color:var(--color-danger);text-decoration:none;font-weight:500;transition:all 0.15s;width:100%;border:none;background:none;cursor:pointer;font-size:inherit;font-family:inherit;text-align:left;">
+                <span>&#128683;</span> Выйти
+            </button>
+        </div>
+    </aside>
+
+    <div class="app-layout">
+        <div class="main-content">
+            <nav class="top-nav">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Открыть меню">&#9776;</button>
+                    <span style="font-weight:600;font-size:1.1rem;">Пользователи</span>
+                </div>
+                <div class="nav-user">
+                    <div class="font-controls">
+                        <select class="font-select" onchange="setFont(this.value)" aria-label="Выбор шрифта">
+                            <option value="">Play</option><option value="inter">Inter</option><option value="roboto">Roboto</option><option value="ubuntu">Ubuntu</option>
+                        </select>
+                        <button class="font-size-btn" onclick="changeFontSize(-1)" aria-label="Уменьшить размер">A-</button>
+                        <button class="font-size-btn" onclick="changeFontSize(1)" aria-label="Увеличить размер">A+</button>
+                        <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Переключить тему"><span class="icon-sun">&#9728;</span><span class="icon-moon">&#9790;</span></button>
+                    </div>
+                    <span id="admin-name"></span>
+                    <button onclick="logout()" class="btn btn-sm btn-outline">Выйти</button>
+                </div>
+            </nav>
+
+            <main style="padding-top:24px;padding-bottom:48px;">
+        <header class="page-header">
+            <h1>Пользователи</h1>
+            <div class="actions-row">
+                <button onclick="openAddModal()" class="btn btn-primary" aria-label="Добавить нового пользователя">Добавить пользователя</button>
+                <label class="btn btn-outline" aria-label="Импорт пользователей из CSV файла">
+                    Импорт CSV
+                    <input type="file" id="csv-file-input" accept=".csv" style="display:none" onchange="importCSV(this)">
+                </label>
+                <button onclick="exportCSV()" class="btn btn-outline" aria-label="Экспорт пользователей в CSV файл">Экспорт CSV</button>
+            </div>
+        </header>
+
+        <section class="card" aria-label="Список пользователей">
+            <div class="filter-bar toolbar">
+                <input type="text" id="search-input" class="filter-search" placeholder="Поиск по имени, телефону..." aria-label="Поиск пользователей" onkeydown="if(event.key==='Enter') applyFilters()">
+                <input type="text" id="dept-filter" placeholder="Отдел" aria-label="Фильтр по отделу" style="min-width:140px">
+                <select id="status-filter" aria-label="Фильтр по статусу">
+                    <option value="">Все</option>
+                    <option value="true">Активные</option>
+                    <option value="false">Отключённые</option>
+                </select>
+                <button onclick="applyFilters()" class="btn btn-primary btn-sm" aria-label="Применить фильтры">Найти</button>
+                <button onclick="resetFilters()" class="btn btn-ghost btn-sm" aria-label="Сбросить все фильтры">Сбросить</button>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="data-table" aria-label="Таблица пользователей">
+                    <thead>
+                        <tr>
+                            <th scope="col">Телефон</th>
+                            <th scope="col">ФИО</th>
+                            <th scope="col">Отдел</th>
+                            <th scope="col">Согласие ПДн</th>
+                            <th scope="col">Статус</th>
+                            <th scope="col">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-tbody"></tbody>
+                </table>
+            </div>
+
+            <div id="empty-state" class="empty-state" style="display:none">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <p id="empty-text">Пользователи не найдены. Добавьте первого пользователя.</p>
+            </div>
+
+            <div class="pagination-row" id="pagination-row" style="display:none">
+                <span class="showing-text" id="showing-text"></span>
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <label for="per-page-select" class="sr-only">Записей на странице</label>
+                    <select id="per-page-select" class="per-page-select" onchange="changePerPage()" aria-label="Количество записей на странице">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                <nav class="pagination" id="pagination" aria-label="Навигация по страницам"></nav>
+            </div>
+        </section>
+            </main>
+        </div>
+    </div>
+
+    <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
+
+    <div id="add-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="add-modal-title">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="add-modal-title">Добавить пользователя</h3>
+                <button onclick="closeAddModal()" class="btn btn-ghost btn-sm" aria-label="Закрыть">&times;</button>
+            </div>
+            <form id="add-user-form" onsubmit="handleAddUser(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label" for="add-phone">Телефон *</label>
+                        <input type="tel" id="add-phone" class="form-input" placeholder="+79001234567" required autocomplete="tel">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="add-name">ФИО *</label>
+                        <input type="text" id="add-name" class="form-input" placeholder="Иванов Иван Иванович" required autocomplete="name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="add-dept">Отдел</label>
+                        <input type="text" id="add-dept" class="form-input" placeholder="Бухгалтерия" autocomplete="organization">
+                    </div>
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" id="add-consent" value="true">
+                            <label for="add-consent">Согласие на обработку ПДн</label>
+                        </div>
+                    </div>
+                    <div id="add-form-error" class="error-message" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeAddModal()" class="btn btn-outline">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Добавить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="delete-modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="delete-modal-title">Удаление пользователя</h3>
+                <button onclick="closeDeleteModal()" class="btn btn-ghost btn-sm" aria-label="Закрыть">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="delete-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeDeleteModal()" class="btn btn-outline">Отмена</button>
+                <button id="confirm-delete-btn" class="btn btn-danger">Удалить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/admin.js?v=20260601c"></script>
+    <script>
+        (function () {
+            let currentPage = 1;
+            let perPage = 50;
+            let totalItems = 0;
+            let usersCache = [];
+            let deleteTargetId = null;
+
+            const phoneRegex = /^(\+7|8)\d{10}$/;
+
+            window.addEventListener('load', async () => {
+                if (!await checkAuth()) return;
+                loadUsers();
+            });
+
+            function getFilterParams() {
+                const params = new URLSearchParams({ page: currentPage, per_page: perPage });
+                const q = document.getElementById('search-input').value.trim();
+                const dept = document.getElementById('dept-filter').value.trim();
+                const status = document.getElementById('status-filter').value;
+                if (q) params.set('q', q);
+                if (dept) params.set('department', dept);
+                if (status !== '') params.set('is_active', status);
+                return params.toString();
+            }
+
+            async function loadUsers() {
+                const tbody = document.getElementById('users-tbody');
+                tbody.innerHTML = '<tr><td colspan="6" class="loading">Загрузка...</td></tr>';
+                try {
+                    const queryStr = getFilterParams();
+                    const resp = await apiFetch('/users/list?' + queryStr);
+                    if (!resp.ok) throw new Error('Ошибка загрузки');
+                    const data = await resp.json();
+                    usersCache = data.items || [];
+                    totalItems = data.total || 0;
+                    renderTable(usersCache);
+                    renderPagination();
+                } catch (err) {
+                    tbody.innerHTML = '';
+                    showToast(err.message || 'Не удалось загрузить пользователей', 'error');
+                }
+            }
+
+            function renderTable(items) {
+                const tbody = document.getElementById('users-tbody');
+                const emptyState = document.getElementById('empty-state');
+                const paginationRow = document.getElementById('pagination-row');
+
+                if (!items.length) {
+                    tbody.innerHTML = '';
+                    emptyState.style.display = 'block';
+                    paginationRow.style.display = 'none';
+                    return;
+                }
+
+                emptyState.style.display = 'none';
+                paginationRow.style.display = 'flex';
+
+                tbody.innerHTML = items.map(u => {
+                    const phoneClean = u.phone.replace(/\D/g, '');
+                    const phoneLink = phoneClean.startsWith('8') ? '+7' + phoneClean.slice(1) : '+' + phoneClean;
+                    return '<tr>' +
+                        '<td><a href="tel:' + escHtml(phoneLink) + '" class="phone-link">' + formatPhone(u.phone) + '</a></td>' +
+                        '<td>' + escHtml(u.full_name || '') + '</td>' +
+                        '<td>' + escHtml(u.department || '') + '</td>' +
+                        '<td><span class="badge ' + (u.consent_given ? 'badge-active' : 'badge-inactive') + '">' + (u.consent_given ? 'Да' : 'Нет') + '</span></td>' +
+                        '<td><span class="badge ' + (u.is_active ? 'badge-active' : 'badge-inactive') + '">' + (u.is_active ? 'Активен' : 'Отключён') + '</span></td>' +
+                        '<td><div class="table-actions">' +
+                            '<button onclick="toggleUserStatus(' + u.id + ',' + (!u.is_active) + ')" class="btn btn-sm btn-outline" aria-label="' + (u.is_active ? 'Деактивировать' : 'Активировать') + '">' + (u.is_active ? 'Деактивировать' : 'Активировать') + '</button>' +
+                            '<button onclick="openDeleteModal(' + u.id + ',\'' + escAttr(u.full_name || '') + '\',\'' + escAttr(formatPhone(u.phone)) + '\')" class="btn btn-sm btn-danger" aria-label="Удалить пользователя">Удалить</button>' +
+                        '</div></td>' +
+                    '</tr>';
+                }).join('');
+
+                const start = (currentPage - 1) * perPage + 1;
+                const end = Math.min(currentPage * perPage, totalItems);
+                document.getElementById('showing-text').textContent = 'Показано ' + start + '-' + end + ' из ' + totalItems;
+            }
+
+            function formatPhone(phone) {
+                var digits = phone.replace(/\D/g, '');
+                if (digits.length === 10 && digits[0] === '7') {
+                    return '+' + digits.slice(0, 1) + '(' + digits.slice(1, 4) + ') ' + digits.slice(4, 7) + '-' + digits.slice(7, 9) + '-' + digits.slice(9);
+                } else if (digits.length === 11 && digits[0] === '8') {
+                    digits = '7' + digits.slice(1);
+                    return '+' + digits.slice(0, 1) + '(' + digits.slice(1, 4) + ') ' + digits.slice(4, 7) + '-' + digits.slice(7, 9) + '-' + digits.slice(9);
+                }
+                return phone;
+            }
+
+            function escAttr(s) {
+                return s.replace(/'/g, '\\\'').replace(/"/g, '&quot;');
+            }
+
+            function renderPagination() {
+                var container = document.getElementById('pagination');
+                if (totalItems <= perPage) { container.innerHTML = ''; return; }
+
+                var totalPages = Math.ceil(totalItems / perPage);
+                var html = '';
+
+                html += '<a href="#" onclick="goToPage(' + (currentPage - 1) + ');return false;"' + (currentPage === 1 ? ' style="pointer-events:none;opacity:0.4"' : '') + '>← Назад</a>';
+
+                var startPage = Math.max(1, currentPage - 2);
+                var endPage = Math.min(totalPages, currentPage + 2);
+                if (startPage > 1) { html += '<a href="#" onclick="goToPage(1);return false;">1</a>'; if (startPage > 2) html += '<span>…</span>'; }
+                for (var i = startPage; i <= endPage; i++) {
+                    html += (i === currentPage) ? '<span class="current">' + i + '</span>' : '<a href="#" onclick="goToPage(' + i + ');return false;">' + i + '</a>';
+                }
+                if (endPage < totalPages) { if (endPage < totalPages - 1) html += '<span>…</span>'; html += '<a href="#" onclick="goToPage(' + totalPages + ');return false;">' + totalPages + '</a>'; }
+
+                html += '<a href="#" onclick="goToPage(' + (currentPage + 1) + ');return false;"' + (currentPage === totalPages ? ' style="pointer-events:none;opacity:0.4"' : '') + '>Вперёд →</a>';
+                container.innerHTML = html;
+            }
+
+            window.goToPage = function (page) {
+                var totalPages = Math.ceil(totalItems / perPage);
+                if (page < 1 || page > totalPages) return;
+                currentPage = page;
+                loadUsers();
+            };
+
+            window.changePerPage = function () {
+                perPage = parseInt(document.getElementById('per-page-select').value, 10);
+                currentPage = 1;
+                loadUsers();
+            };
+
+            window.applyFilters = function () {
+                currentPage = 1;
+                loadUsers();
+            };
+
+            window.resetFilters = function () {
+                document.getElementById('search-input').value = '';
+                document.getElementById('dept-filter').value = '';
+                document.getElementById('status-filter').value = '';
+                currentPage = 1;
+                loadUsers();
+            };
+
+            /* ---- Add User Modal ---- */
+
+            var addModalOverlay = document.getElementById('add-modal-overlay');
+            var lastFocusedBeforeAdd = null;
+
+            window.openAddModal = function () {
+                lastFocusedBeforeAdd = document.activeElement;
+                addModalOverlay.classList.remove('hidden');
+                document.getElementById('add-phone').focus();
+                trapFocus(addModalOverlay);
+                document.addEventListener('keydown', handleEscapeAdd);
+            };
+
+            window.closeAddModal = function () {
+                addModalOverlay.classList.add('hidden');
+                document.getElementById('add-user-form').reset();
+                document.getElementById('add-form-error').textContent = '';
+                document.removeEventListener('keydown', handleEscapeAdd);
+                if (lastFocusedBeforeAdd) lastFocusedBeforeAdd.focus();
+            };
+
+            function handleEscapeAdd(e) {
+                if (e.key === 'Escape') closeAddModal();
+            }
+
+            window.handleAddUser = async function (e) {
+                e.preventDefault();
+                var errorEl = document.getElementById('add-form-error');
+                var phone = document.getElementById('add-phone').value.trim();
+                var full_name = document.getElementById('add-name').value.trim();
+                var department = document.getElementById('add-dept').value.trim() || undefined;
+                var consent_given = document.getElementById('add-consent').checked;
+
+                var digitsOnly = phone.replace(/\D/g, '');
+                if (digitsOnly.length === 11 && digitsOnly[0] === '8') {
+                    /* ok — 8XXXXXXXXXX */
+                } else if (digitsOnly.length === 11 && digitsOnly[0] === '7') {
+                    /* ok — 79XXXXXXXXX (equivalent to +7) */
+                } else {
+                    errorEl.textContent = 'Неверный формат телефона. Используйте +7XXXXXXXXXX или 8XXXXXXXXXX.';
+                    return;
+                }
+
+                try {
+                    var resp = await apiFetch('/users/add', { method: 'POST', body: JSON.stringify({ phone: phone, full_name: full_name, department: department, consent_given: consent_given }) });
+                    if (!resp.ok) throw new Error('Ошибка добавления пользователя');
+                    closeAddModal();
+                    currentPage = 1;
+                    loadUsers();
+                    showToast('Пользователь «' + full_name + '» успешно добавлен', 'success');
+                } catch (err) {
+                    errorEl.textContent = err.message || 'Не удалось добавить пользователя';
+                }
+            };
+
+            /* ---- Delete Modal ---- */
+
+            var deleteModalOverlay = document.getElementById('delete-modal-overlay');
+            var lastFocusedBeforeDelete = null;
+
+            window.openDeleteModal = function (id, name, phone) {
+                lastFocusedBeforeDelete = document.activeElement;
+                deleteTargetId = id;
+                document.getElementById('delete-message').textContent = 'Удалить пользователя «' + name + '» (' + phone + ') из списка доступа? Это действие нельзя отменить.';
+                deleteModalOverlay.classList.remove('hidden');
+                document.getElementById('confirm-delete-btn').focus();
+                trapFocus(deleteModalOverlay);
+                document.addEventListener('keydown', handleEscapeDelete);
+            };
+
+            window.closeDeleteModal = function () {
+                deleteModalOverlay.classList.add('hidden');
+                deleteTargetId = null;
+                document.removeEventListener('keydown', handleEscapeDelete);
+                if (lastFocusedBeforeDelete) lastFocusedBeforeDelete.focus();
+            };
+
+            function handleEscapeDelete(e) {
+                if (e.key === 'Escape') closeDeleteModal();
+            }
+
+            document.getElementById('confirm-delete-btn').addEventListener('click', async function () {
+                if (!deleteTargetId) return;
+                try {
+                    await apiFetch('/users/' + deleteTargetId, { method: 'DELETE' });
+                    closeDeleteModal();
+                    loadUsers();
+                    showToast('Пользователь успешно удалён', 'success');
+                } catch (err) {
+                    showToast('Не удалось удалить пользователя', 'error');
+                }
+            });
+
+            /* ---- Toggle Status ---- */
+
+            window.toggleUserStatus = async function (id, activate) {
+                try {
+                    if (activate) {
+                        await apiFetch('/users/' + id, { method: 'PUT', body: JSON.stringify({ is_active: true }) });
+                        showToast('Пользователь активирован', 'success');
+                    } else {
+                        await apiFetch('/users/' + id + '/deactivate', { method: 'PUT' });
+                        showToast('Пользователь деактивирован', 'success');
+                    }
+                    loadUsers();
+                } catch (err) {
+                    showToast('Ошибка при изменении статуса', 'error');
+                }
+            };
+
+            /* ---- CSV Import ---- */
+
+            window.importCSV = async function (input) {
+                var file = input.files[0];
+                if (!file) return;
+                try {
+                    var formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('mode', 'upsert');
+                    var resp = await fetch('/api/v1/users/import-csv', { method: 'POST', credentials: 'include', body: formData });
+                    if (!resp.ok) throw new Error('Ошибка импорта');
+                    var data = await resp.json();
+                    showToast('Импорт завершён: добавлено ' + (data.added || 0) + ', обновлено ' + (data.updated || 0) + ', пропущено ' + (data.skipped || 0), 'success');
+                    loadUsers();
+                } catch (err) {
+                    showToast(err.message || 'Ошибка импорта CSV', 'error');
+                }
+                input.value = '';
+            };
+
+            window.exportCSV = function () {
+                var a = document.createElement('a');
+                a.href = '/api/v1/users/export-csv';
+                a.target = '_blank';
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', '/api/v1/users/export-csv', true);
+                xhr.withCredentials = true;
+                xhr.responseType = 'blob';
+                xhr.onload = function () {
+                    if (xhr.status === 200) {
+                        var url = URL.createObjectURL(xhr.response);
+                        a.href = url;
+                        a.download = 'users_export.csv';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    } else {
+                        showToast('Ошибка экспорта CSV', 'error');
+                    }
+                };
+                xhr.onerror = function () { showToast('Ошибка сети при экспорте', 'error'); };
+                xhr.send();
+            };
+
+            /* ---- Toast ---- */
+
+            function showToast(message, type) {
+                var container = document.getElementById('toast-container');
+                var toast = document.createElement('div');
+                toast.className = 'toast toast-' + (type || 'success');
+                toast.textContent = message;
+                toast.setAttribute('role', 'alert');
+                container.appendChild(toast);
+                setTimeout(function () {
+                    toast.style.transition = 'opacity 0.3s';
+                    toast.style.opacity = '0';
+                    setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+                }, 4000);
+            }
+
+            /* ---- Focus Trap ---- */
+
+            function trapFocus(modal) {
+                var focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                if (!focusable.length) return;
+                var first = focusable[0];
+                var last = focusable[focusable.length - 1];
+
+                modal.addEventListener('keydown', function (e) {
+                    if (e.key !== 'Tab') return;
+                    if (e.shiftKey) {
+                        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+                    } else {
+                        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+                    }
+                });
+            }
+
+        })();
+    </script>
+</body>
+</html>

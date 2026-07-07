@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Support Bot — Документы базы знаний</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Play:wght@400;700&family=Roboto:wght@400;500;700&family=Ubuntu:wght@400;500;700&subset=cyrillic&display=swap">
+    <link rel="stylesheet" href="/static/style.css?v=20260601a">
+    <style>
+        .upload-zone {
+            border: 2px dashed var(--color-border);
+            border-radius: var(--radius-md);
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            background: rgba(248, 250, 252, 0.5);
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--color-primary);
+            background: rgba(15, 118, 110, 0.04);
+        }
+        .upload-zone-icon { font-size: 2rem; margin-bottom: 8px; display: block; }
+        .upload-zone-text { color: var(--color-text-muted); font-size: 0.9375rem; }
+        .file-preview { margin-top: 16px; padding: 12px 16px; background: var(--color-bg); border-radius: var(--radius-sm); display: none; align-items: center; gap: 8px; font-size: 0.9375rem; }
+        .file-preview.visible { display: flex; }
+        .file-preview-name { font-weight: 600; color: var(--color-text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-preview-size { color: var(--color-text-muted); font-size: 0.8rem; flex-shrink: 0; }
+        .file-type-icon { display: inline-block; width: 24px; text-align: center; flex-shrink: 0; }
+        .toolbar select.form-select { min-width: 140px; max-width: 200px; }
+        .empty-state { padding: 64px 24px; text-align: center; color: var(--color-text-muted); }
+        .empty-state-icon { font-size: 3rem; margin-bottom: 12px; display: block; opacity: 0.5; }
+        .upload-loading { pointer-events: none; opacity: 0.6; }
+    </style>
+</head>
+<body data-font="">
+    <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
+
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">IT</div>
+            <span class="sidebar-logo-text">Support Bot</span>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="/admin"><span>&#128200;</span> Дашборд</a></li>
+            <li><a href="/admin/documents" class="active"><span>&#128196;</span> Документы</a></li>
+            <li><a href="/admin/users"><span>&#128101;</span> Пользователи</a></li>
+            <li><a href="/admin/tickets"><span>&#128203;</span> Заявки</a></li>
+            <li><a href="/admin/analytics"><span>&#128202;</span> Аналитика</a></li>
+            <li><a href="/admin/import-csv"><span>&#128229;</span> Импорт CSV</a></li>
+        </ul>
+        <div class="font-controls-mobile" style="display:none;align-items:center;gap:4px;padding:8px 12px;border-top:1px solid var(--color-border);margin-top:8px;">
+            <select class="font-select" onchange="setFont(this.value)"><option value="">Play</option><option value="inter">Inter</option><option value="roboto">Roboto</option><option value="ubuntu">Ubuntu</option></select>
+            <button class="font-size-btn" onclick="changeFontSize(-1)">A-</button>
+            <button class="font-size-btn" onclick="changeFontSize(1)">A+</button>
+        </div>
+        <div class="sidebar-theme-toggle" style="display:none;align-items:center;justify-content:space-between;padding:8px 12px;border-top:1px solid var(--color-border);">
+            <span style="font-size:0.85rem;color:var(--color-text-muted);">Тема</span>
+            <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Переключить тему"><span class="icon-sun">&#9728;</span><span class="icon-moon">&#9790;</span></button>
+        </div>
+        <div class="sidebar-footer">
+            <button onclick="logout()" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);color:var(--color-danger);text-decoration:none;font-weight:500;transition:all 0.15s;width:100%;border:none;background:none;cursor:pointer;font-size:inherit;font-family:inherit;text-align:left;">
+                <span>&#128683;</span> Выйти
+            </button>
+        </div>
+    </aside>
+
+    <div class="app-layout">
+        <div class="main-content">
+            <nav class="top-nav">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Открыть меню">&#9776;</button>
+                    <span style="font-weight:600;font-size:1.1rem;">Документы</span>
+                </div>
+                <div class="nav-user">
+                    <div class="font-controls">
+                        <select class="font-select" onchange="setFont(this.value)" aria-label="Выбор шрифта">
+                            <option value="">Play</option><option value="inter">Inter</option><option value="roboto">Roboto</option><option value="ubuntu">Ubuntu</option>
+                        </select>
+                        <button class="font-size-btn" onclick="changeFontSize(-1)" aria-label="Уменьшить размер">A-</button>
+                        <button class="font-size-btn" onclick="changeFontSize(1)" aria-label="Увеличить размер">A+</button>
+                        <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Переключить тему"><span class="icon-sun">&#9728;</span><span class="icon-moon">&#9790;</span></button>
+                    </div>
+                    <span id="admin-name"></span>
+                    <button onclick="logout()" class="btn btn-sm btn-outline">Выйти</button>
+                </div>
+            </nav>
+
+            <div style="padding-top:24px;padding-bottom:48px;">
+        <div class="page-header">
+            <h1>Документы базы знаний</h1>
+            <button class="btn btn-primary" id="open-upload-btn" aria-label="Загрузить документ">&#10133; Загрузить документ</button>
+        </div>
+
+        <div class="card" id="upload-card" style="display:none;">
+            <h2 style="margin-bottom:16px;">Загрузка файла</h2>
+            <div class="upload-zone" id="upload-zone" role="button" tabindex="0" aria-label="Зона загрузки файлов. Перетащите файл сюда или нажмите для выбора.">
+                <span class="upload-zone-icon">&#128230;</span>
+                <span class="upload-zone-text">Перетащите файл сюда или нажмите для выбора</span>
+                <div style="margin-top:8px; font-size:0.75rem; color:var(--color-text-muted);">Форматы: .pdf, .docx, .xlsx, .xls, .txt, .md, .odt, .doc</div>
+            </div>
+            <input type="file" id="file-input" accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.odt,.doc" style="display:none;" aria-label="Выбор файла для загрузки">
+
+            <div class="file-preview" id="file-preview">
+                <span class="file-type-icon" id="preview-icon"></span>
+                <span class="file-preview-name" id="preview-name"></span>
+                <span class="file-preview-size" id="preview-size"></span>
+            </div>
+
+            <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.9375rem;cursor:pointer;">
+                    <input type="checkbox" id="is-template-check"> Это шаблон заявки (без индексации в базе знаний)
+                </label>
+                <div id="template-fields" style="display:none; flex-direction:column; gap:8px;">
+                    <textarea id="description-input" placeholder="Описание шаблона (необязательно)" rows="2" style="padding:8px 12px;border:1px solid var(--color-border);border-radius:var(--radius-sm);font-family:inherit;font-size:0.9375rem;resize:vertical;"></textarea>
+                </div>
+            </div>
+
+            <div style="margin-top:16px; display:flex; gap:8px;">
+                <button class="btn btn-primary" id="upload-btn" disabled aria-label="Отправить файл на сервер">&#8615; Отправить</button>
+                <button class="btn btn-outline" id="cancel-upload-btn" style="display:none;" aria-label="Отменить загрузку">Отмена</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="toolbar">
+                <input type="text" id="search-input" placeholder="Поиск по имени файла..." aria-label="Поиск документов по имени">
+                <select class="form-select" id="filter-type" aria-label="Фильтр по типу файла">
+                    <option value="">Все типы</option>
+                    <option value="pdf">PDF</option>
+                    <option value="docx">DOCX</option>
+                    <option value="xlsx">XLSX</option>
+                    <option value="xls">XLS</option>
+                    <option value="txt">TXT</option>
+                    <option value="md">MD</option>
+                    <option value="odt">ODT</option>
+                    <option value="doc">DOC</option>
+                </select>
+                <select class="form-select" id="filter-kind" aria-label="Фильтр по типу записи" style="min-width:160px;">
+                    <option value="">Все файлы</option>
+                    <option value="false">Документы</option>
+                    <option value="true">Шаблоны</option>
+                </select>
+                <select class="form-select" id="filter-status" aria-label="Фильтр по статусу" style="min-width:140px;margin-left:auto;">
+                    <option value="all">Все документы</option>
+                    <option value="active">Активен</option>
+                    <option value="inactive">Отключён</option>
+                </select>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="data-table" aria-label="Список документов базы знаний">
+                    <thead>
+                        <tr>
+                            <th scope="col">Файл</th>
+                            <th scope="col">Тип</th>
+                            <th scope="col">Размер</th>
+                            <th scope="col">Чанков</th>
+                            <th scope="col">Загрузил</th>
+                            <th scope="col">Дата</th>
+                            <th scope="col">Статус</th>
+                            <th scope="col">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="documents-tbody"></tbody>
+                </table>
+            </div>
+
+            <div class="empty-state" id="empty-state" style="display:none;">
+                <span class="empty-state-icon">&#128196;</span>
+                <p>Документы ещё не загружены. Загрузите первый документ для базы знаний.</p>
+            </div>
+
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="delete-modal">
+        <div class="modal-content" role="dialog" aria-labelledby="delete-modal-title" aria-describedby="delete-modal-body">
+            <div class="modal-header">
+                <h3 id="delete-modal-title">Удаление документа</h3>
+                <button class="btn btn-sm btn-outline" onclick="closeDeleteModal()" aria-label="Закрыть">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="delete-modal-body"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeDeleteModal()" aria-label="Отменить удаление">Отмена</button>
+                <button class="btn btn-danger" id="confirm-delete-btn" aria-label="Подтвердить удаление документа">Удалить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="edit-modal">
+        <div class="modal-content" role="dialog" aria-labelledby="edit-modal-title">
+            <div class="modal-header">
+                <h3 id="edit-modal-title">Редактирование шаблона</h3>
+                <button class="btn btn-sm btn-outline" onclick="closeEditModal()" aria-label="Закрыть">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="edit-modal-filename" style="font-weight:600;margin-bottom:12px;"></p>
+                <label for="edit-description-input" style="display:block;font-size:0.9375rem;margin-bottom:6px;">Описание:</label>
+                <textarea id="edit-description-input" rows="3" style="width:100%;padding:8px 12px;border:1px solid var(--color-border);border-radius:var(--radius-sm);font-family:inherit;font-size:0.9375rem;resize:vertical;box-sizing:border-box;"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeEditModal()" aria-label="Отменить редактирование">Отмена</button>
+                <button class="btn btn-primary" id="confirm-edit-btn" aria-label="Сохранить изменения">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/admin.js?v=20260601c"></script>
+    <script>
+        (function () {
+            const FILE_ICONS = { pdf: '\uD83D\uDCC4', docx: '\uD83D\uDCDD', xlsx: '\uD83D\uDCCA', xls: '\uD83D\uDCCA', txt: '\uD83D\uDCCB', md: '\uD83D\uDCC9', odt: '\uD83D\uDCDD', doc: '\uD83D\uDCDD' };
+            let documents = [];
+            let currentPage = 1;
+            const perPage = 50;
+
+            const uploadCard = document.getElementById('upload-card');
+            const uploadZone = document.getElementById('upload-zone');
+            const fileInput = document.getElementById('file-input');
+            const filePreview = document.getElementById('file-preview');
+            const previewIcon = document.getElementById('preview-icon');
+            const previewName = document.getElementById('preview-name');
+            const previewSize = document.getElementById('preview-size');
+            const uploadBtn = document.getElementById('upload-btn');
+            const cancelUploadBtn = document.getElementById('cancel-upload-btn');
+            const searchInput = document.getElementById('search-input');
+            const filterType = document.getElementById('filter-type');
+            const filterKind = document.getElementById('filter-kind');
+            const filterStatus = document.getElementById('filter-status');
+            let statusFilter = 'all';
+            let kindFilter = '';
+            const tbody = document.getElementById('documents-tbody');
+            const emptyState = document.getElementById('empty-state');
+            const paginationEl = document.getElementById('pagination');
+
+            document.getElementById('open-upload-btn').addEventListener('click', () => {
+                uploadCard.style.display = 'block';
+                uploadCard.scrollIntoView({ behavior: 'smooth' });
+            });
+
+            const isTemplateCheck = document.getElementById('is-template-check');
+            const templateFields = document.getElementById('template-fields');
+            const descriptionInput = document.getElementById('description-input');
+
+            isTemplateCheck.addEventListener('change', function() {
+                templateFields.style.display = this.checked ? 'flex' : 'none';
+            });
+
+            cancelUploadBtn.addEventListener('click', clearFile);
+
+            uploadZone.addEventListener('click', () => fileInput.click());
+            uploadZone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+
+            uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+            uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+            });
+
+            fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+
+            function getFileExt(filename) { return filename.split('.').pop().toLowerCase(); }
+
+            function formatSize(bytes) {
+                if (!bytes) return '—';
+                if (bytes < 1024) return bytes + ' Б';
+                if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' КБ';
+                return (bytes / 1048576).toFixed(1) + ' МБ';
+            }
+
+            function handleFile(file) {
+                const ext = getFileExt(file.name);
+                if (!['pdf', 'docx', 'xlsx', 'xls', 'txt', 'md', 'odt', 'doc'].includes(ext)) {
+                    showToast('Неподдерживаемый формат файла: .' + ext, 'error');
+                    return;
+                }
+                previewIcon.textContent = FILE_ICONS[ext] || '\uD83D\uDCC4';
+                previewName.textContent = file.name;
+                previewSize.textContent = formatSize(file.size);
+                filePreview.classList.add('visible');
+                uploadBtn.disabled = false;
+                cancelUploadBtn.style.display = 'inline-flex';
+
+                uploadBtn.onclick = async () => {
+                    uploadBtn.disabled = true;
+                    uploadBtn.textContent = '\u23F3 Загрузка...';
+                    uploadCard.classList.add('upload-loading');
+
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('is_template', isTemplateCheck.checked ? 'true' : 'false');
+                    if (descriptionInput.value.trim()) {
+                        formData.append('description', descriptionInput.value.trim());
+                    }
+
+                    try {
+                        const resp = await fetch('/api/v1/documents/upload', {
+                            method: 'POST',
+                            credentials: 'include',
+                            body: formData
+                        });
+                        if (resp.ok) {
+                            const data = await resp.json();
+                            if (data.status === 'template')
+                                showToast('Шаблон «' + escHtml(file.name) + '» загружен', 'success');
+                            else
+                                showToast('Документ «' + escHtml(file.name) + '» загружен (' + data.chunks_count + ' чанков)', 'success');
+                            clearFile();
+                            currentPage = 1;
+                            loadDocuments();
+                        } else {
+                            const err = await resp.json().catch(() => ({}));
+                            showToast(err.detail || 'Ошибка загрузки документа', 'error');
+                        }
+                    } catch {
+                        showToast('Не удалось подключиться к серверу', 'error');
+                    } finally {
+                        uploadBtn.disabled = false;
+                        uploadBtn.textContent = '\u21D5 Отправить';
+                        uploadCard.classList.remove('upload-loading');
+                    }
+                };
+            }
+
+            function clearFile() {
+                fileInput.value = '';
+                filePreview.classList.remove('visible');
+                uploadBtn.disabled = true;
+                cancelUploadBtn.style.display = 'none';
+                isTemplateCheck.checked = false;
+                templateFields.style.display = 'none';
+                descriptionInput.value = '';
+            }
+
+            async function loadDocuments() {
+                let url = '/documents/list?page=' + currentPage + '&per_page=' + perPage + '&status_filter=' + statusFilter;
+                if (kindFilter) url += '&is_template=' + kindFilter;
+                console.log('[docs] loading:', url);
+                try {
+                    const resp = await apiFetch(url);
+                    const data = await resp.json();
+                    documents = data.items || [];
+                    renderTable(documents);
+                    renderPagination(data.total || 0, perPage, currentPage);
+                } catch (err) { console.error(err); }
+            }
+
+            function getFilteredDocuments() {
+                const query = searchInput.value.trim().toLowerCase();
+                const typeFilter = filterType.value;
+                return documents.filter(d => {
+                    if (query && !d.filename.toLowerCase().includes(query)) return false;
+                    if (typeFilter && d.file_type !== typeFilter) return false;
+                    return true;
+                });
+            }
+
+            function renderTable(items) {
+                if (!items.length) {
+                    tbody.innerHTML = '';
+                    emptyState.style.display = 'block';
+                    document.querySelector('.table-wrapper').style.display = 'none';
+                    return;
+                }
+                emptyState.style.display = 'none';
+                document.querySelector('.table-wrapper').style.display = 'block';
+                tbody.innerHTML = '';
+
+                items.forEach(d => {
+                    const ext = d.file_type || getFileExt(d.filename);
+                    let icon = FILE_ICONS[ext] || '\uD83D\uDCC4';
+                    if (d.is_template) icon = '\uD83D\uDCE5';
+
+                    const tr = document.createElement('tr');
+                    tr.dataset.docId = d.id;
+
+                    const tdFile = document.createElement('td');
+                    tdFile.innerHTML = '<span class="file-type-icon">' + icon + '</span> ' + escHtml(d.filename);
+                    tr.appendChild(tdFile);
+
+                    const tdType = document.createElement('td');
+                    tdType.style.cssText = 'text-transform:uppercase;font-size:0.8rem;';
+                    tdType.textContent = ext;
+                    tr.appendChild(tdType);
+
+                    const tdSize = document.createElement('td');
+                    tdSize.textContent = formatSize(d.size_bytes);
+                    tr.appendChild(tdSize);
+
+                    const tdChunks = document.createElement('td');
+                    tdChunks.textContent = d.chunks_count || '\u2014';
+                    tr.appendChild(tdChunks);
+
+                    const tdUploaded = document.createElement('td');
+                    tdUploaded.textContent = d.uploaded_by || '';
+                    tr.appendChild(tdUploaded);
+
+                    const tdDate = document.createElement('td');
+                    tdDate.textContent = formatDate(d.created_at);
+                    tr.appendChild(tdDate);
+
+                    const tdStatus = document.createElement('td');
+                    tdStatus.innerHTML = '<span class="badge ' + (d.is_active ? 'badge-active' : 'badge-inactive') + '">' + (d.is_active ? 'Активен' : 'Отключён') + '</span>';
+                    tr.appendChild(tdStatus);
+
+                    const tdActions = document.createElement('td');
+
+                    if (d.is_template && d.is_active) {
+                        const linkBtn = document.createElement('button');
+                        linkBtn.className = 'btn btn-sm btn-primary';
+                        linkBtn.textContent = '\uD83D\uDD17 Получить ссылку';
+                        linkBtn.onclick = () => window._getLink(d.id);
+                        tdActions.appendChild(linkBtn);
+                    }
+
+                    if (d.is_active) {
+                        const editBtn = document.createElement('button');
+                        editBtn.className = 'btn btn-sm';
+                        editBtn.style.cssText = 'color:var(--color-primary);border:1px solid var(--color-border);';
+                        editBtn.textContent = '\u270F\uFE0F';
+                        editBtn.onclick = () => window._editTemplate(d.id, d.filename, d.description || '');
+                        tdActions.appendChild(editBtn);
+                    }
+
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'btn btn-sm btn-danger';
+                    if (d.is_active) {
+                        delBtn.textContent = 'Отключить';
+                        delBtn.onclick = () => window._deleteDoc(d.id, d.filename, false);
+                    } else {
+                        delBtn.textContent = 'Удалить навсегда';
+                        delBtn.onclick = () => window._deleteDoc(d.id, d.filename, true);
+                    }
+                    tdActions.appendChild(delBtn);
+
+                    tr.appendChild(tdActions);
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function renderPagination(total, perPage, current) {
+                const totalPages = Math.ceil(total / perPage);
+                if (totalPages <= 1) { paginationEl.innerHTML = ''; return; }
+                let html = '';
+                if (current > 1) html += '<a href="#" data-page="' + (current - 1) + '">&larr;</a>';
+                for (let i = 1; i <= totalPages; i++) {
+                    if (i === current) html += '<span class="current">' + i + '</span>';
+                    else html += '<a href="#" data-page="' + i + '">' + i + '</a>';
+                }
+                if (current < totalPages) html += '<a href="#" data-page="' + (current + 1) + '">&rarr;</a>';
+                paginationEl.innerHTML = html;
+
+                paginationEl.querySelectorAll('a[data-page]').forEach(a => {
+                    a.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        currentPage = parseInt(a.dataset.page);
+                        loadDocuments();
+                    });
+                });
+            }
+
+            searchInput.addEventListener('input', () => renderTable(getFilteredDocuments()));
+            filterType.addEventListener('change', () => renderTable(getFilteredDocuments()));
+            filterKind.addEventListener('change', function() { kindFilter = this.value; currentPage = 1; loadDocuments(); });
+            filterStatus.addEventListener('change', function() { statusFilter = this.value; currentPage = 1; loadDocuments(); });
+
+              window._deleteDoc = function (id, filename, permanent) {
+                permanent = !!permanent;
+                if (permanent) {
+                    document.getElementById('delete-modal-body').textContent = 'Безвозвратно удалить документ «' + filename + '» из базы и с диска? Это действие нельзя отменить.';
+                } else {
+                    document.getElementById('delete-modal-body').textContent = 'Отключить документ «' + filename + '» и удалить из векторной базы?';
+                }
+                document.getElementById('confirm-delete-btn').onclick = async () => {
+                    try {
+                        await apiFetch('/documents/' + id + (permanent ? '?permanent=true' : ''), { method: 'DELETE' });
+                        if (permanent) {
+                            showToast('Документ «' + escHtml(filename) + '» удалён навсегда', 'success');
+                        } else {
+                            showToast('Документ «' + escHtml(filename) + '» отключён', 'success');
+                        }
+                        closeDeleteModal();
+                        loadDocuments();
+                    } catch (err) {
+                        console.error(err);
+                        showToast('Ошибка при удалении документа', 'error');
+                    }
+                };
+                document.getElementById('delete-modal').classList.remove('hidden');
+            };
+
+            window._getLink = async function (id) {
+                try {
+                    const resp = await apiFetch('/templates/' + id + '/generate-link', { method: 'POST' });
+                    if (!resp.ok) throw new Error('Failed to generate link');
+                    const data = await resp.json();
+                    navigator.clipboard.writeText(data.download_url).then(() => {
+                        showToast('Ссылка скопирована в буфер обмена (истекает через 1 час)', 'success');
+                    }).catch(() => {
+                        prompt('Скопируйте ссылку:', data.download_url);
+                        showToast('Ссылка сгенерирована (истекает через 1 час)', 'success');
+                    });
+                } catch (err) {
+                    console.error(err);
+                    showToast('Ошибка при генерации ссылки', 'error');
+                }
+            };
+
+            window._editTemplate = function (id, filename, description) {
+                document.getElementById('edit-modal-filename').textContent = filename;
+                document.getElementById('edit-description-input').value = description || '';
+                document.getElementById('confirm-edit-btn').onclick = async () => {
+                    const newDesc = document.getElementById('edit-description-input').value.trim();
+                    try {
+                        const formData = new FormData();
+                        formData.append('description', newDesc);
+                        await apiFetch('/documents/' + id, { method: 'PATCH', body: formData });
+                        showToast('Описание обновлено', 'success');
+                        closeEditModal();
+                        loadDocuments();
+                    } catch (err) {
+                        console.error(err);
+                        showToast('Ошибка при сохранении', 'error');
+                    }
+                };
+                document.getElementById('edit-modal').classList.remove('hidden');
+            };
+
+            window.closeEditModal = function () {
+                document.getElementById('edit-modal').classList.add('hidden');
+            };
+
+            window.closeDeleteModal = function () {
+                document.getElementById('delete-modal').classList.add('hidden');
+            };
+
+            document.getElementById('delete-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeDeleteModal(); });
+            document.getElementById('edit-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeEditModal(); });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeDeleteModal(); closeEditModal(); } });
+
+            window.showToast = function (message, type) {
+                const toast = document.createElement('div');
+                toast.className = 'toast toast-' + type;
+                toast.textContent = message;
+                toast.setAttribute('role', 'alert');
+                document.getElementById('toast-container').appendChild(toast);
+                setTimeout(() => {
+                    toast.style.transition = 'opacity 0.3s';
+                    toast.style.opacity = '0';
+                    setTimeout(() => toast.remove(), 300);
+                }, 4000);
+            };
+
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && uploadCard.style.display !== 'none') clearFile(); });
+
+            checkAuth().then(authed => { if (authed) loadDocuments(); });
+        })();
+    </script>
+            </div>
+        </div>
+    </div>
+
+ </body>
+</html>

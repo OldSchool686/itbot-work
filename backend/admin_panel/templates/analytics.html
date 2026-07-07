@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Support Bot — Аналитика заявок</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Play:wght@400;700&family=Roboto:wght@400;500;700&family=Ubuntu:wght@400;500;700&subset=cyrillic&display=swap">
+    <link rel="stylesheet" href="/static/style.css?v=20260531b">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <style>
+        .analytics-filters { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+        .filter-tabs { display: flex; border-radius: var(--radius-md); border: 1px solid var(--color-border); overflow: hidden; }
+        .filter-tab { padding: 8px 16px; font-size: 0.875rem; cursor: pointer; background: var(--color-surface); border: none; color: var(--color-text-muted); transition: all 0.15s; white-space: nowrap; }
+        .filter-tab:hover { background: rgba(15,118,110,0.06); }
+        .filter-tab.active { background: var(--color-primary); color: #fff; font-weight: 600; }
+        .filter-group { display: flex; align-items: center; gap: 6px; font-size: 0.875rem; }
+        .filter-label { color: var(--color-text-muted); font-weight: 500; white-space: nowrap; }
+        .filter-input, .filter-select { padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); font-size: 0.875rem; background: var(--color-surface); }
+
+        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 32px; }
+        .metric-card { background: var(--color-surface); border-radius: var(--radius-md); border: 1px solid var(--color-border); padding: 20px; text-align: center; }
+        .metric-value { font-size: 2rem; font-weight: 700; line-height: 1.2; }
+        .metric-label { font-size: 0.8rem; color: var(--color-text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+        .chart-container { background: var(--color-surface); border-radius: var(--radius-md); border: 1px solid var(--color-border); padding: 24px; margin-bottom: 32px; position: relative; height: 350px; }
+        @media (max-width: 640px) { .chart-container { height: 260px; padding: 16px; } }
+
+        .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 12px; color: var(--color-text); }
+        .dept-table-wrap, .tickets-table-wrap { overflow-x: auto; margin-bottom: 32px; background: var(--color-surface); border-radius: var(--radius-md); border: 1px solid var(--color-border); }
+
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        .data-table th, .data-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+        .data-table th { font-weight: 600; color: var(--color-text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer; user-select: none; white-space: nowrap; background: rgba(248,250,252,0.8); }
+        .data-table th:hover { color: var(--color-primary); }
+        .data-table th.sorted-asc::after { content: ' ▲'; font-size: 0.6rem; }
+        .data-table th.sorted-desc::after { content: ' ▼'; font-size: 0.6rem; }
+        .data-table tr:hover td { background: rgba(15,118,110,0.03); }
+
+        .pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; font-size: 0.8rem; color: var(--color-text-muted); flex-wrap: wrap; gap: 8px; }
+        .pagination-btns { display: flex; gap: 4px; }
+        .page-btn { padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid var(--color-border); background: var(--color-surface); cursor: pointer; font-size: 0.8rem; color: var(--color-text); }
+        .page-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+        .page-btn.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+        .status-new { background: #dbeafe; color: #1d4ed8; }
+        .status-in_progress { background: #fef3c7; color: #b45309; }
+        .status-done { background: #dcfce7; color: #16a34a; }
+        .status-resolved { background: #dcfce7; color: #16a34a; }
+        .status-closed { background: #e5e7eb; color: #6b7280; }
+
+        .toolbar-row { display: flex; gap: 8px; padding: 12px 14px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid var(--color-border); }
+    </style>
+</head>
+<body data-font="">
+    <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
+
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">IT</div>
+            <span class="sidebar-logo-text">Support Bot</span>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="/admin"><span>&#128200;</span> Дашборд</a></li>
+            <li><a href="/admin/documents"><span>&#128196;</span> Документы</a></li>
+            <li><a href="/admin/users"><span>&#128101;</span> Пользователи</a></li>
+            <li><a href="/admin/tickets"><span>&#128203;</span> Заявки</a></li>
+            <li><a href="/admin/analytics" class="active"><span>&#128202;</span> Аналитика</a></li>
+            <li><a href="/admin/import-csv"><span>&#128229;</span> Импорт CSV</a></li>
+        </ul>
+        <div class="font-controls-mobile" style="display:none;align-items:center;gap:4px;padding:8px 12px;border-top:1px solid var(--color-border);margin-top:8px;">
+            <select class="font-select" onchange="setFont(this.value)"><option value="">Play</option><option value="inter">Inter</option><option value="roboto">Roboto</option><option value="ubuntu">Ubuntu</option></select>
+            <button class="font-size-btn" onclick="changeFontSize(-1)">A-</button>
+            <button class="font-size-btn" onclick="changeFontSize(1)">A+</button>
+        </div>
+        <div class="sidebar-theme-toggle" style="display:none;align-items:center;justify-content:space-between;padding:8px 12px;border-top:1px solid var(--color-border);">
+            <span style="font-size:0.85rem;color:var(--color-text-muted);">Тема</span>
+            <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Переключить тему"><span class="icon-sun">&#9728;</span><span class="icon-moon">&#9790;</span></button>
+        </div>
+        <div class="sidebar-footer">
+            <button onclick="logout()" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);color:var(--color-danger);text-decoration:none;font-weight:500;transition:all 0.15s;width:100%;border:none;background:none;cursor:pointer;font-size:inherit;font-family:inherit;text-align:left;">
+                <span>&#128683;</span> Выйти
+            </button>
+        </div>
+    </aside>
+
+    <div class="app-layout">
+        <div class="main-content">
+            <nav class="top-nav">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Открыть меню">&#9776;</button>
+                    <span style="font-weight:600;font-size:1.1rem;">Аналитика</span>
+                </div>
+                <div class="nav-user">
+                    <div class="font-controls">
+                        <select class="font-select" onchange="setFont(this.value)" aria-label="Выбор шрифта">
+                            <option value="">Play</option><option value="inter">Inter</option><option value="roboto">Roboto</option><option value="ubuntu">Ubuntu</option>
+                        </select>
+                        <button class="font-size-btn" onclick="changeFontSize(-1)" aria-label="Уменьшить размер">A-</button>
+                        <button class="font-size-btn" onclick="changeFontSize(1)" aria-label="Увеличить размер">A+</button>
+                        <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Переключить тему"><span class="icon-sun">&#9728;</span><span class="icon-moon">&#9790;</span></button>
+                    </div>
+                    <span id="admin-name"></span>
+                    <button onclick="logout()" class="btn btn-sm btn-outline">Выйти</button>
+                </div>
+            </nav>
+
+            <main style="padding-top:24px;padding-bottom:48px;">
+        <header class="page-header">
+            <h1 style="margin-bottom:0;">Аналитика заявок</h1>
+        </header>
+
+        <!-- Period filters -->
+        <div class="analytics-filters" id="period-filters">
+            <div class="filter-tabs" id="period-tabs">
+                <button class="filter-tab active" data-type="all">Все</button>
+                <button class="filter-tab" data-type="year">Год</button>
+                <button class="filter-tab" data-type="half_year" data-value="1">1 Полугодие</button>
+                <button class="filter-tab" data-type="half_year" data-value="2">2 Полугодие</button>
+                <button class="filter-tab" data-type="month" data-value="">Месяц</button>
+                <button class="filter-tab" data-type="custom">Свой период</button>
+            </div>
+            <div class="filter-group">
+                <span class="filter-label">Год:</span>
+                <select class="filter-select" id="year-select"></select>
+            </div>
+            <div class="filter-group" id="month-filter-group" style="display:none;">
+                <span class="filter-label">Месяц:</span>
+                <select class="filter-select" id="month-select">
+                    <option value="1">Январь</option><option value="2">Февраль</option><option value="3">Март</option>
+                    <option value="4">Апрель</option><option value="5">Май</option><option value="6">Июнь</option>
+                    <option value="7">Июль</option><option value="8">Август</option><option value="9">Сентябрь</option>
+                    <option value="10">Октябрь</option><option value="11">Ноябрь</option><option value="12">Декабрь</option>
+                </select>
+            </div>
+            <div class="filter-group" id="custom-dates" style="display:none;">
+                <input type="date" class="filter-input" id="from-date">
+                <span class="filter-label">—</span>
+                <input type="date" class="filter-input" id="to-date">
+            </div>
+        </div>
+
+        <!-- Metric cards -->
+        <div class="metrics-grid" id="metrics-grid"></div>
+
+        <!-- Chart -->
+        <h2 class="section-title">Заявки по месяцам</h2>
+        <div class="chart-container"><canvas id="monthly-chart"></canvas></div>
+
+        <!-- Department summary table -->
+        <h2 class="section-title">Заявки по отделам</h2>
+        <div class="dept-table-wrap">
+            <table class="data-table" id="dept-table">
+                <thead><tr><th onclick="sortDeptTable('dept')">Отдел</th><th onclick="sortDeptTable('count')" class="sorted-desc">Заявок</th></tr></thead>
+                <tbody id="dept-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- Full tickets table -->
+        <h2 class="section-title">Детальный список заявок</h2>
+        <div class="tickets-table-wrap">
+            <div class="toolbar-row">
+                <input type="text" class="filter-input" id="search-dept" placeholder="Поиск по отделу...">
+                <select class="filter-select" id="status-filter">
+                    <option value="">Все статусы</option>
+                    <option value="new">🔵 Новые</option>
+                    <option value="in_progress">🟡 В работе</option>
+                    <option value="done">✅ Выполнены</option>
+                    <option value="resolved">✅ Решены</option>
+                    <option value="closed">⚫ Закрыты</option>
+                </select>
+            </div>
+            <table class="data-table" id="tickets-data-table">
+                <thead><tr>
+                    <th data-sort="full_name">Заявитель</th>
+                    <th data-sort="department">Отдел</th>
+                    <th data-sort="category">Категория</th>
+                    <th data-sort="created_at" class="sorted-desc">Дата</th>
+                    <th data-sort="status">Статус</th>
+                </tr></thead>
+                <tbody id="tickets-tbody"></tbody>
+            </table>
+            <div class="pagination" id="tickets-pagination"></div>
+        </div>
+    </main>
+
+    <script src="/static/admin.js?v=20260601c"></script>
+    <script>
+        (function () {
+            const STATUS_LABELS = { new:'🔵 Новая', in_progress:'🟡 В работе', done:'✅ Выполнена', resolved:'✅ Решена', closed:'⚫ Закрыта' };
+            const CATEGORY_LABELS = { computer:'💻 Компьютер/Ноутбук', mfu:'🖨️ МФУ/Принтер/Сканер', software:'⚙️ ПО', certificate:'🔐 Сертификат/Подпись', other:'📎 Другое' };
+
+            let state = {
+                periodType: 'all', periodValue: '', year: new Date().getFullYear(),
+                fromDate: '', toDate: '', deptFilter: '', statusFilter: '',
+                sortBy: 'created_at', sortOrder: 'desc', page: 0, pageSize: 50,
+                chartData: null, deptData: [], ticketsTotal: 0
+            };
+
+            let monthlyChart = null;
+            let currentAbort = null;
+
+            // Populate year selector (2026–2035)
+            const ys = document.getElementById('year-select');
+            for (let y = 2026; y <= 2035; y++) {
+                const o = document.createElement('option'); o.value = y; o.textContent = y;
+                if (y === state.year) o.selected = true;
+                ys.appendChild(o);
+            }
+
+            // Period tab clicks
+            document.querySelectorAll('#period-tabs .filter-tab').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#period-tabs .filter-tab').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    state.periodType = btn.dataset.type;
+                    state.periodValue = btn.dataset.value || '';
+                    document.getElementById('custom-dates').style.display = 'none';
+                    document.getElementById('month-filter-group').style.display = 'none';
+                    if (state.periodType === 'custom') {
+                        document.getElementById('custom-dates').style.display = 'flex';
+                    } else if (state.periodType === 'month') {
+                        const now = new Date();
+                        document.getElementById('month-select').value = now.getMonth() + 1;
+                        state.periodValue = String(now.getMonth() + 1);
+                        document.getElementById('month-filter-group').style.display = 'flex';
+                    }
+                    state.page = 0; loadAnalytics();
+                });
+            });
+
+            ys.addEventListener('change', () => { state.year = +ys.value; state.page = 0; loadAnalytics(); });
+            document.getElementById('month-select').addEventListener('change', function () { state.periodValue = this.value; state.page = 0; loadAnalytics(); });
+            document.getElementById('from-date').addEventListener('change', e => { state.fromDate = e.target.value; loadAnalytics(); });
+            document.getElementById('to-date').addEventListener('change', e => { state.toDate = e.target.value; loadAnalytics(); });
+
+            let searchTimeout;
+            document.getElementById('search-dept').addEventListener('input', function () {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => { state.deptFilter = this.value.trim(); state.page = 0; loadTicketsOnly(); }, 300);
+            });
+            document.getElementById('status-filter').addEventListener('change', function () {
+                state.statusFilter = this.value; state.page = 0; loadAnalytics();
+            });
+
+            // Table header sorting
+            document.querySelectorAll('#tickets-data-table th[data-sort]').forEach(th => {
+                th.addEventListener('click', () => {
+                    const col = th.dataset.sort;
+                    if (state.sortBy === col) state.sortOrder = state.sortOrder === 'desc' ? 'asc' : 'desc';
+                    else { state.sortBy = col; state.sortOrder = 'desc'; }
+                    document.querySelectorAll('#tickets-data-table th').forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+                    th.classList.add(state.sortOrder === 'desc' ? 'sorted-desc' : 'sorted-asc');
+                    state.page = 0; loadTicketsOnly();
+                });
+            });
+
+            async function loadAnalytics() {
+                if (currentAbort) currentAbort.abort();
+                const ctrl = new AbortController();
+                currentAbort = ctrl;
+
+                const params = new URLSearchParams({
+                    period_type: state.periodType, period_value: state.periodValue, year: state.year,
+                    from_date: state.fromDate, to_date: state.toDate,
+                    department_filter: state.deptFilter || (state.statusFilter ? '' : ''), status_filter: state.statusFilter,
+                    sort_by: state.sortBy, sort_order: state.sortOrder, limit: state.pageSize, offset: state.page * state.pageSize
+                });
+
+                try {
+                    const res = await apiFetch(`/tickets/admin/analytics?${params}`, { signal: ctrl.signal });
+                    if (!res.ok) { console.error('Analytics API error:', res.status, res.statusText); document.getElementById('metrics-grid').innerHTML = '<div class="metric-card"><div class="metric-value" style="color:var(--color-danger)">Ошибка загрузки данных (' + res.status + ')</div></div>'; return; }
+                    const data = await res.json();
+                    renderMetrics(data);
+                    renderChart(data.by_month || []);
+                    renderDeptTable(data.by_department || {});
+                    renderTickets(data.tickets || [], data.tickets_total || 0);
+                } catch (e) { if (e.name !== 'AbortError') { console.error('Analytics load error:', e); document.getElementById('metrics-grid').innerHTML = '<div class="metric-card"><div class="metric-value" style="color:var(--color-danger)">Ошибка сети</div></div>'; } }
+                finally { currentAbort = null; }
+            }
+
+            async function loadTicketsOnly() {
+                const params = new URLSearchParams({
+                    period_type: state.periodType, period_value: state.periodValue, year: state.year,
+                    from_date: state.fromDate, to_date: state.toDate,
+                    department_filter: state.deptFilter, status_filter: state.statusFilter,
+                    sort_by: state.sortBy, sort_order: state.sortOrder, limit: state.pageSize, offset: state.page * state.pageSize
+                });
+                try {
+                    const res = await apiFetch(`/tickets/admin/analytics?${params}`);
+                    if (!res.ok) { console.error('Tickets API error:', res.status); return; }
+                    const data = await res.json();
+                    renderTickets(data.tickets || [], data.tickets_total || 0);
+                } catch (e) { console.error('Tickets load error:', e); }
+            }
+
+            function renderMetrics(d) {
+                const s = d.by_status || {};
+                const resolvedCount = (s.done||0) + (s.resolved||0);
+                document.getElementById('metrics-grid').innerHTML = `
+                    <div class="metric-card"><div class="metric-value" style="color:var(--color-primary);">${d.total}</div><div class="metric-label">Всего заявок</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:#1d4ed8;">${s.new||0}</div><div class="metric-label">Новые</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:#b45309;">${s.in_progress||0}</div><div class="metric-label">В работе</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:#16a34a;">${resolvedCount}</div><div class="metric-label">Выполнено/Решено</div></div>
+                    <div class="metric-card"><div class="metric-value" style="color:#6b7280;">${s.closed||0}</div><div class="metric-label">Закрыто</div></div>
+                `;
+            }
+
+            function renderChart(byMonth) {
+                const ctx = document.getElementById('monthly-chart').getContext('2d');
+                if (monthlyChart) monthlyChart.destroy();
+
+                const labels = byMonth.map(m => {
+                    const [y, mo] = m.month.split('-');
+                    return ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'][+mo-1];
+                });
+
+                monthlyChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels, datasets: [{ label:'Заявок', data: byMonth.map(m=>m.count), backgroundColor:'#0f766eaa', borderColor:'#0f766e', borderWidth:1, borderRadius:4 }] },
+                    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{grid:{display:false}}, y:{beginAtZero:true,ticks:{stepSize:1}}} }
+                });
+            }
+
+            let deptSortDir = 'desc';
+            window.sortDeptTable = function(col) {
+                if (col === 'dept') { deptSortDir = deptSortDir === 'asc' ? 'desc' : 'asc'; }
+                const ths = document.querySelectorAll('#dept-table th');
+                ths.forEach(t => t.classList.remove('sorted-asc','sorted-desc'));
+                ths[col === 'dept' ? 0 : 1].classList.add(deptSortDir === 'desc' ? 'sorted-desc' : 'sorted-asc');
+                state.deptData.sort((a,b) => deptSortDir === 'desc' ? b.count - a.count : (col==='dept'? a.dept.localeCompare(b.dept,'ru') : a.count - b.count));
+                renderDeptTableFromData();
+            };
+
+            function renderDeptTable(byDept) {
+                state.deptData = Object.entries(byDept).map(([d,c])=>({dept:d,count:c})).sort((a,b)=>b.count-a.count);
+                renderDeptTableFromData();
+            }
+
+            function renderDeptTableFromData() {
+                document.getElementById('dept-tbody').innerHTML = state.deptData.map(r =>
+                    `<tr><td>${escHtml(r.dept)}</td><td style="font-weight:600;">${r.count}</td></tr>`
+                ).join('');
+            }
+
+            function renderTickets(tickets, total) {
+                state.ticketsTotal = total;
+                const tbody = document.getElementById('tickets-tbody');
+                if (!tickets.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--color-text-muted);padding:24px;">Нет заявок за выбранный период</td></tr>';
+                } else {
+                    tbody.innerHTML = tickets.map(t => {
+                        const ds = t.created_at ? new Date(t.created_at).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'}) : '-';
+                        return `<tr>
+                            <td>${escHtml(t.full_name)}</td><td style="font-size:0.8rem;">${escHtml(t.department||'-')}</td>
+                            <td>${CATEGORY_LABELS[t.category]||escHtml(t.category)}</td><td style="white-space:nowrap;font-size:0.8rem;">${ds}</td>
+                            <td><span class="status-badge status-${t.status}">${STATUS_LABELS[t.status]||t.status}</span></td>
+                        </tr>`;
+                    }).join('');
+                }
+
+                // Pagination
+                const totalPages = Math.ceil(total / state.pageSize);
+                const pg = document.getElementById('tickets-pagination');
+                if (total === 0) { pg.innerHTML = ''; return; }
+
+                let btns = '';
+                btns += `<button class="page-btn" ${state.page<=0?'disabled':''} onclick="goPage(${state.page-1})">←</button>`;
+                const maxShow = 5, startP = Math.max(0, state.page - 2);
+                for (let i = startP; i < Math.min(totalPages, startP + maxShow); i++) {
+                    btns += `<button class="page-btn ${i===state.page?'active':''}" onclick="goPage(${i})">${i+1}</button>`;
+                }
+                btns += `<button class="page-btn" ${state.page>=totalPages-1?'disabled':''} onclick="goPage(${state.page+1})">→</button>`;
+
+                const pageSizeOptions = [50,100,250].map(v => `<option value="${v}"${v===state.pageSize?'selected':''}>${v} на стр.</option>`).join('');
+
+                pg.innerHTML = `
+                    <span>Показано ${(state.page*state.pageSize)+1}–${Math.min((state.page+1)*state.pageSize, total)} из ${total}</span>
+                    <div class="pagination-btns">${btns}</div>
+                    <select class="filter-select" onchange="changePageSize(+this.value)">
+                        ${pageSizeOptions}
+                    </select>
+                `;
+            }
+
+            window.goPage = function(p) { state.page = p; loadTicketsOnly(); };
+            window.changePageSize = function(sz) { state.pageSize = sz; state.page = 0; loadAnalytics(); };
+
+            checkAuth().then(authed => { if (authed) loadAnalytics(); });
+        })();
+    </script>
+            </main>
+        </div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+</body>
+</html>

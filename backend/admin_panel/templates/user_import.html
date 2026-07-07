@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Support Bot — Импорт пользователей</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Play:wght@400;700&family=Roboto:wght@400;500;700&family=Ubuntu:wght@400;500;700&subset=cyrillic&display=swap">
+    <link rel="stylesheet" href="/static/style.css?v=20260531b">
+</head>
+<body data-font="">
+    <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
+
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-logo"><div class="sidebar-logo-icon">IT</div><span class="sidebar-logo-text">Support Bot</span></div>
+        <ul class="sidebar-nav">
+            <li><a href="/admin"><span>&#128200;</span> Дашборд</a></li>
+            <li><a href="/admin/documents"><span>&#128196;</span> Документы</a></li>
+            <li><a href="/admin/users"><span>&#128101;</span> Пользователи</a></li>
+            <li><a href="/admin/tickets"><span>&#128203;</span> Заявки</a></li>
+            <li><a href="/admin/analytics"><span>&#128202;</span> Аналитика</a></li>
+            <li><a href="/admin/import-csv" class="active"><span>&#128229;</span> Импорт CSV</a></li>
+        </ul>
+        <div class="font-controls-mobile" style="display:none;align-items:center;gap:4px;padding:8px 12px;border-top:1px solid var(--color-border);margin-top:8px;">
+            <select class="font-select" onchange="setFont(this.value)"><option value="">Play</option><option value="inter">Inter</option><option value="roboto">Roboto</option><option value="ubuntu">Ubuntu</option></select>
+            <button class="font-size-btn" onclick="changeFontSize(-1)">A-</button>
+            <button class="font-size-btn" onclick="changeFontSize(1)">A+</button>
+        </div>
+        <div class="sidebar-theme-toggle" style="display:none;align-items:center;justify-content:space-between;padding:8px 12px;border-top:1px solid var(--color-border);">
+            <span style="font-size:0.85rem;color:var(--color-text-muted);">Тема</span>
+            <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Переключить тему"><span class="icon-sun">&#9728;</span><span class="icon-moon">&#9790;</span></button>
+        </div>
+        <div class="sidebar-footer">
+            <button onclick="logout()" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);color:var(--color-danger);font-weight:500;width:100%;border:none;background:none;cursor:pointer;font-size:inherit;font-family:inherit;text-align:left;"><span>&#128683;</span> Выйти</button>
+        </div>
+    </aside>
+
+    <div class="app-layout">
+        <div class="main-content">
+            <nav class="top-nav">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Открыть меню">&#9776;</button>
+                    <span style="font-weight:600;font-size:1.1rem;">Импорт CSV</span>
+                </div>
+                <div class="nav-user">
+                    <div class="font-controls">
+                        <select class="font-select" onchange="setFont(this.value)" aria-label="Выбор шрифта"><option value="">Play</option><option value="inter">Inter</option><option value="roboto">Roboto</option><option value="ubuntu">Ubuntu</option></select>
+                        <button class="font-size-btn" onclick="changeFontSize(-1)">A-</button>
+                        <button class="font-size-btn" onclick="changeFontSize(1)">A+</button>
+                        <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Переключить тему"><span class="icon-sun">&#9728;</span><span class="icon-moon">&#9790;</span></button>
+                    </div>
+                    <span id="admin-name"></span>
+                    <button onclick="logout()" class="btn btn-sm btn-outline">Выйти</button>
+                </div>
+            </nav>
+
+            <main style="padding-top:32px;padding-bottom:48px;">
+        <a href="/admin/users" class="back-link">&larr; Назад к пользователям</a>
+        <header class="page-header">
+            <h1 style="margin-bottom:0;">Импорт пользователей из CSV</h1>
+        </header>
+
+        <div class="card">
+            <p style="color:var(--color-text-muted); margin-bottom:24px; font-size:0.9375rem;">
+                Загрузите CSV-файл с заголовками: <code>phone, full_name, department, consent_given</code><br>
+                Пример: <code>+79001234567, Иванов Иван Иванович, Отдел бухгалтерского учёта, true</code>
+            </p>
+
+            <form id="import-form">
+                <div class="upload-zone" id="csv-dropzone" role="button" tabindex="0" style="margin-bottom:16px;">
+                    <span style="font-size:2rem; display:block; margin-bottom:8px;">&#128229;</span>
+                    <span style="color:var(--color-text-muted);">Перетащите CSV-файл сюда или нажмите для выбора</span>
+                </div>
+                <input type="file" id="csv-file" accept=".csv" required style="display:none;" aria-label="Выбор CSV файла">
+
+                <div class="radio-group" style="margin-bottom:24px;">
+                    <label><input type="radio" name="mode" value="upsert" checked> Обновить/Добавить (upsert)</label>
+                    <label><input type="radio" name="mode" value="replace"> Заменить все (replace)</label>
+                </div>
+
+                <button type="submit" class="btn btn-primary">&#8615; Импортировать</button>
+            </form>
+
+            <div id="import-status" style="margin-top:16px;"></div>
+        </div>
+    </main>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/admin.js?v=20260601c"></script>
+    <script>
+        (function () {
+            const dropzone = document.getElementById('csv-dropzone');
+            const fileInput = document.getElementById('csv-file');
+            const statusEl = document.getElementById('import-status');
+
+            dropzone.addEventListener('click', () => fileInput.click());
+            dropzone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+            dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.style.borderColor = 'var(--color-primary)'; });
+            dropzone.addEventListener('dragleave', () => { dropzone.style.borderColor = ''; });
+            dropzone.addEventListener('drop', e => {
+                e.preventDefault();
+                dropzone.style.borderColor = '';
+                if (e.dataTransfer.files.length) fileInput.files = e.dataTransfer.files;
+            });
+
+            document.getElementById('import-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                statusEl.innerHTML = '<span class="loading">Загрузка и обработка...</span>';
+
+                const file = fileInput.files[0];
+                if (!file) { statusEl.innerHTML = '<div class="error-message">Выберите CSV-файл</div>'; return; }
+
+                const mode = document.querySelector('input[name="mode"]:checked').value;
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('mode', mode);
+
+                try {
+                    const resp = await fetch(`${API}/users/import-csv`, {
+                        method: 'POST', credentials: 'include', body: formData,
+                    });
+
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        statusEl.innerHTML = '';
+                        const div = document.createElement('div');
+                        div.className = 'success';
+                        div.style.marginTop = '0';
+                        div.textContent = `Импорт завершён: Добавлено: ${Number(data.added)}, Обновлено: ${Number(data.updated)}, Пропущено: ${Number(data.skipped || 0)}`;
+                        statusEl.appendChild(div);
+                    } else {
+                        const err = await resp.json().catch(() => ({}));
+                        statusEl.innerHTML = '';
+                        const div = document.createElement('div');
+                        div.className = 'error-message';
+                        div.textContent = err.detail || 'Ошибка импорта';
+                        statusEl.appendChild(div);
+                    }
+                } catch {
+                    statusEl.innerHTML = '<div class="error-message">Не удалось подключиться к серверу</div>';
+                }
+            });
+
+            checkAuth();
+        })();
+    </script>
+            </main>
+        </div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+</body>
+</html>

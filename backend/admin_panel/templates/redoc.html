@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Support Bot — ReDoc</title>
+    <style>
+        body { margin: 0; padding: 0; }
+        .top-bar { background: #1b2838; color: white; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+        .top-bar a { color: #7ec8e3; text-decoration: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <a href="/admin">&larr; Назад в панель управления</a>
+        <span>ReDoc — API Documentation</span>
+    </div>
+    <redoc id="redoc-container"></redoc>
+    <script src="https://cdn.jsdelivr.net/npm/redoc@2.2.0/bundles/redoc.standalone.js"></script>
+    <script>
+        fetch('/admin/openapi.json')
+            .then(r => r.json())
+            .then(spec => {
+                Redoc.init(spec, {}, document.getElementById('redoc-container'));
+            })
+            .catch(err => {
+                console.error('Failed to load OpenAPI spec:', err);
+                document.getElementById('redoc-container').innerHTML =
+                    '<p style="padding:24px; color:red;">Ошибка загрузки спецификации API. Проверьте консоль.</p>';
+            });
+    </script>
+</body>
+</html>

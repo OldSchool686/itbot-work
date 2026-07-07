@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Support Bot — Вход</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Play:wght@400;700&family=Roboto:wght@400;500;700&family=Ubuntu:wght@400;500;700&subset=cyrillic&display=swap">
+    <link rel="stylesheet" href="/static/style.css?v=20260531b">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <h1>🤖 IT Support Bot</h1>
+        <form id="login-form">
+            <label for="username">Логин</label>
+            <input type="text" id="username" name="username" required autocomplete="username">
+            <label for="password">Пароль</label>
+            <input type="password" id="password" name="password" required autocomplete="current-password">
+            <div id="login-error" class="error-message"></div>
+            <button type="submit">Войти</button>
+        </form>
+    </div>
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const errorEl = document.getElementById('login-error');
+            errorEl.textContent = '';
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const resp = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password}),
+                });
+
+                  if (resp.ok) {
+                    window.location.href = '/admin';
+                } else {
+                    const err = await resp.json().catch(() => ({}));
+                    errorEl.textContent = err.detail || 'Ошибка входа';
+                }
+            } catch (err) {
+                errorEl.textContent = 'Не удалось подключиться к серверу';
+            }
+        });
+
+        /* Pause animations when tab is hidden (saves CPU in Yandex Browser) */
+        document.addEventListener('visibilitychange', () => {
+            document.body.classList.toggle('paused-animations', document.hidden);
+        });
+    </script>
+</body>
+</html>
